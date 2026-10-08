@@ -1,1 +1,102 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة ضربات الجزاء 3D</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        #scoreboard {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 20px;
+            font-weight: bold;
+            display: flex;
+            gap: 30px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .score-item span {
+            font-size: 24px;
+        }
+        .goals { color: #4CAF50; }
+        .misses { color: #F44336; }
+
+        #ui-controls {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .btn {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+        }
+        .btn:hover {
+            background: #1976D2;
+            transform: translateY(-2px);
+        }
+        #instructions {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background: rgba(0,0,0,0.6);
+            padding: 8px 18px;
+            border-radius: 15px;
+            font-size: 14px;
+            pointer-events: none;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="scoreboard">
+        <div class="score-item">الأهداف: <span id="goals-count" class="goals">0</span></div>
+        <div class="score-item">الضائعة: <span id="misses-count" class="misses">0</span></div>
+    </div>
+
+    <div id="instructions">اسحب الكرة نحو المرمى للتسديد!</div>
+
+    <div id="ui-controls">
+        <button class="btn" onclick="changeKitColor()">تغيير لون القميص</button>
+        <button class="btn" onclick="changeShortsColor()">تغيير لون الشورت</button>
+    </div>
+
+    <script>
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEFA);
+
+        const camera = new THREE
 
