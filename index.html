@@ -2,59 +2,60 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>لعبة ضربات الجزاء 3D</title>
     <style>
+        * { box-sizing: border-box; }
         body {
             margin: 0;
+            padding: 0;
             overflow: hidden;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            user-select: none;
             background-color: #87CEFA;
+            font-family: sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
         }
-        #canvas-container {
+        #gameCanvas {
+            display: block;
             width: 100vw;
             height: 100vh;
-            display: block;
+            background: #87CEFA;
         }
         #scoreboard {
             position: absolute;
             top: 15px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             color: white;
-            padding: 10px 25px;
-            border-radius: 25px;
-            font-size: 18px;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 16px;
             font-weight: bold;
             display: flex;
-            gap: 25px;
+            gap: 20px;
             border: 2px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
             z-index: 10;
         }
         .goals { color: #4CAF50; }
         .misses { color: #F44336; }
-
         #ui-controls {
             position: absolute;
             bottom: 20px;
-            right: 20px;
+            right: 15px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
             z-index: 10;
         }
         .btn {
             background: #2196F3;
             color: white;
             border: none;
-            padding: 10px 16px;
+            padding: 10px 14px;
             border-radius: 8px;
-            cursor: pointer;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 13px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
         #instructions {
@@ -64,303 +65,231 @@
             transform: translateX(-50%);
             color: white;
             background: rgba(0,0,0,0.7);
-            padding: 8px 18px;
-            border-radius: 15px;
-            font-size: 14px;
+            padding: 6px 14px;
+            border-radius: 12px;
+            font-size: 13px;
             pointer-events: none;
             z-index: 10;
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-
-    <div id="canvas-container"></div>
 
     <div id="scoreboard">
         <div>الأهداف: <span id="goals-count" class="goals">0</span></div>
         <div>الضائعة: <span id="misses-count" class="misses">0</span></div>
     </div>
 
-    <div id="instructions">اسحب الكرة بأصبعك نحو المرمى للتسديد!</div>
+    <div id="instructions">اسحب الكرة نحو المرمى للتسديد!</div>
 
     <div id="ui-controls">
         <button class="btn" onclick="changeKitColor()">تغيير لون القميص</button>
         <button class="btn" onclick="changeShortsColor()">تغيير لون الشورت</button>
     </div>
 
+    <canvas id="gameCanvas"></canvas>
+
     <script>
-        const container = document.getElementById('canvas-container');
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEFA);
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
 
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 3.5, 14);
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        container.appendChild(renderer.domElement);
-
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-        scene.add(ambientLight);
-
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(10, 30, 10);
-        scene.add(dirLight);
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
 
         let goals = 0, misses = 0;
-        let isKicking = false;
-        let ballVelocity = new THREE.Vector3();
-        const gravity = -9.8;
-        let playerShirtMat, playerShortsMat;
+        let shirtColors = ['#d32f2f', '#1976d2', '#388e3c', '#7b1fa2', '#f57c00', '#212121'];
+        let shortsColors = ['#ffffff', '#212121', '#1976d2', '#fbc02d'];
+        let currentShirtIdx = 0;
+        let currentShortsIdx = 0;
 
-        // الملعب
-        const fieldGeo = new THREE.PlaneGeometry(60, 80);
-        const fieldMat = new THREE.MeshLambertMaterial({ color: 0x2e7d32 });
-        const field = new THREE.Mesh(fieldGeo, fieldMat);
-        field.rotation.x = -Math.PI / 2;
-        scene.add(field);
-
-        // خط منطقة الجزاء
-        const lineGeo = new THREE.PlaneGeometry(16, 0.2);
-        const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const line = new THREE.Mesh(lineGeo, lineMat);
-        line.rotation.x = -Math.PI / 2;
-        line.position.set(0, 0.01, -2);
-        scene.add(line);
-
-        // المرمى والشبكة
-        const goalGroup = new THREE.Group();
-        const postMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-        const postRadius = 0.12, goalWidth = 7.32, goalHeight = 2.44;
-
-        const leftPost = new THREE.Mesh(new THREE.CylinderGeometry(postRadius, postRadius, goalHeight), postMat);
-        leftPost.position.set(-goalWidth/2, goalHeight/2, -12);
-
-        const rightPost = new THREE.Mesh(new THREE.CylinderGeometry(postRadius, postRadius, goalHeight), postMat);
-        rightPost.position.set(goalWidth/2, goalHeight/2, -12);
-
-        const crossbar = new THREE.Mesh(new THREE.CylinderGeometry(postRadius, postRadius, goalWidth), postMat);
-        crossbar.rotation.z = Math.PI / 2;
-        crossbar.position.set(0, goalHeight, -12);
-
-        goalGroup.add(leftPost, rightPost, crossbar);
-
-        const netGeo = new THREE.BoxGeometry(goalWidth, goalHeight, 1.5);
-        const netMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.3 });
-        const net = new THREE.Mesh(netGeo, netMat);
-        net.position.set(0, goalHeight/2, -12.75);
-        goalGroup.add(net);
-        scene.add(goalGroup);
-
-        // المدرجات والجمهور
-        const standGeo = new THREE.BoxGeometry(70, 8, 10);
-        const standMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
-        const stand = new THREE.Mesh(standGeo, standMat);
-        stand.position.set(0, 4, -22);
-        scene.add(stand);
-
-        const crowdGroup = new THREE.Group();
-        const spectatorGeo = new THREE.BoxGeometry(0.5, 0.9, 0.5);
-        const crowdColors = [0xe74c3c, 0x3498db, 0xf1c40f, 0x9b59b6, 0x1abc9c, 0xe67e22];
-
-        for(let x = -30; x <= 30; x += 1.5) {
-            for(let z = -24; z <= -18; z += 1.8) {
-                const color = crowdColors[Math.floor(Math.random() * crowdColors.length)];
-                const specMat = new THREE.MeshLambertMaterial({ color: color });
-                const spectator = new THREE.Mesh(spectatorGeo, specMat);
-                spectator.position.set(x, 6.5 + (z + 24)*0.3, z);
-                crowdGroup.add(spectator);
-            }
+        function changeKitColor() {
+            currentShirtIdx = (currentShirtIdx + 1) % shirtColors.length;
         }
-        scene.add(crowdGroup);
-
-        // كرة القدم (أبيض وأحمر)
-        function createBallCanvas() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 128; canvas.height = 128;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 128, 128);
-            ctx.fillStyle = '#d32f2f';
-            for (let i = 0; i < 128; i += 32) {
-                for (let j = 0; j < 128; j += 32) {
-                    if ((i + j) % 64 === 0) ctx.fillRect(i, j, 16, 16);
-                }
-            }
-            return canvas;
+        function changeShortsColor() {
+            currentShortsIdx = (currentShortsIdx + 1) % shortsColors.length;
         }
 
-        const ballRadius = 0.35;
-        const ballTexture = new THREE.CanvasTexture(createBallCanvas());
-        const ballMat = new THREE.MeshLambertMaterial({ map: ballTexture });
-        const ball = new THREE.Mesh(new THREE.SphereGeometry(ballRadius, 16, 16), ballMat);
-        scene.add(ball);
+        // الكرة
+        let ball = {
+            x: 0, y: 0, z: 1,
+            startX: 0, startY: 0,
+            vx: 0, vy: 0, vz: 0,
+            isKicking: false
+        };
+
+        // الحارس
+        let keeper = { x: 0, targetX: 0 };
 
         function resetBall() {
-            ball.position.set(0, ballRadius, 6);
-            ballVelocity.set(0, 0, 0);
-            isKicking = false;
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height * 0.75;
+            ball.z = 1;
+            ball.vx = 0; ball.vy = 0; ball.vz = 0;
+            ball.isKicking = false;
+            keeper.x = canvas.width / 2;
+            keeper.targetX = canvas.width / 2;
         }
         resetBall();
 
-        // الشخصيات
-        function createCharacter(shirtColor, shortsColor, shoeColor, hasHair) {
-            const group = new THREE.Group();
-            const shirtMat = new THREE.MeshLambertMaterial({ color: shirtColor });
-            const shortsMat = new THREE.MeshLambertMaterial({ color: shortsColor });
-            const skinMat = new THREE.MeshLambertMaterial({ color: 0xffdbac });
-            const shoeMat = new THREE.MeshLambertMaterial({ color: shoeColor });
-            const sockMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-
-            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.4), shirtMat);
-            torso.position.y = 1.35;
-            group.add(torso);
-
-            const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 12), skinMat);
-            head.position.y = 2.05;
-            group.add(head);
-
-            if (hasHair) {
-                const hairMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-                const hair = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), hairMat);
-                hair.position.set(0, 2.12, -0.02);
-                group.add(hair);
-            }
-
-            const shorts = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.4, 0.42), shortsMat);
-            shorts.position.y = 0.8;
-            group.add(shorts);
-
-            [-0.2, 0.2].forEach(x => {
-                const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.6), sockMat);
-                leg.position.set(x, 0.3, 0);
-                group.add(leg);
-
-                const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.3), shoeMat);
-                shoe.position.set(x, 0.06, 0.05);
-                group.add(shoe);
-            });
-
-            return { group, shirtMat, shortsMat };
-        }
-
-        const playerObj = createCharacter(0xd32f2f, 0xffffff, 0x1976D2, true);
-        const player = playerObj.group;
-        playerShirtMat = playerObj.shirtMat;
-        playerShortsMat = playerObj.shortsMat;
-        player.position.set(-0.8, 0, 7.2);
-        player.rotation.y = 0.2;
-        scene.add(player);
-
-        const keeperObj = createCharacter(0xfbc02d, 0xffffff, 0x333333, false);
-        const keeper = keeperObj.group;
-        keeper.position.set(0, 0, -11.5);
-        scene.add(keeper);
-
-        const kitColors = [0xd32f2f, 0x1976d2, 0x388e3c, 0x7b1fa2, 0xf57c00, 0x212121];
-        let colorIdx = 0;
-
-        function changeKitColor() {
-            colorIdx = (colorIdx + 1) % kitColors.length;
-            playerShirtMat.color.setHex(kitColors[colorIdx]);
-        }
-
-        function changeShortsColor() {
-            const randomColor = kitColors[Math.floor(Math.random() * kitColors.length)];
-            playerShortsMat.color.setHex(randomColor);
-        }
-
-        // التحكم في التسديد
-        let touchStartX = 0, touchStartY = 0;
-
+        // السحب للتسديد
+        let touchX = 0, touchY = 0;
         window.addEventListener('pointerdown', (e) => {
-            if (isKicking) return;
-            touchStartX = e.clientX;
-            touchStartY = e.clientY;
+            if (ball.isKicking) return;
+            touchX = e.clientX;
+            touchY = e.clientY;
         });
 
         window.addEventListener('pointerup', (e) => {
-            if (isKicking) return;
-            const deltaX = e.clientX - touchStartX;
-            const deltaY = e.clientY - touchStartY;
+            if (ball.isKicking) return;
+            let dx = e.clientX - touchX;
+            let dy = e.clientY - touchY;
 
-            if (deltaY < -20) {
-                isKicking = true;
-                const speedZ = Math.max(deltaY * 0.08, -22); 
-                const speedX = deltaX * 0.03;
-                const speedY = Math.min(-deltaY * 0.04, 10);
+            if (dy < -20) {
+                ball.isKicking = true;
+                ball.vx = dx * 0.15;
+                ball.vy = dy * 0.12;
+                ball.vz = -0.012;
 
-                ballVelocity.set(speedX, speedY, speedZ);
-
-                const keeperJumpX = (Math.random() - 0.5) * (goalWidth - 1);
-                keeper.position.x = keeperJumpX;
+                // تحريك الحارس
+                keeper.targetX = (canvas.width / 2) + (Math.random() - 0.5) * 180;
             }
         });
 
-        const clock = new THREE.Clock();
+        let isResultHandled = false;
 
-        function animate() {
-            requestAnimationFrame(animate);
-            const delta = clock.getDelta();
+        function update() {
+            if (ball.isKicking) {
+                ball.x += ball.vx;
+                ball.y += ball.vy;
+                ball.z += ball.vz;
+                ball.vy += 0.25; // جاذبية
 
-            if (isKicking) {
-                ballVelocity.y += gravity * delta;
-                ball.position.addScaledVector(ballVelocity, delta);
-                ball.rotation.x += ballVelocity.z * delta * 0.2;
+                keeper.x += (keeper.targetX - keeper.x) * 0.1;
 
-                if (ball.position.y <= ballRadius) {
-                    ball.position.y = ballRadius;
-                    ballVelocity.y *= -0.5;
-                    ballVelocity.x *= 0.8;
-                    ballVelocity.z *= 0.8;
-                }
+                // عند وصول الكرة للمرمى
+                if (ball.z <= 0.45 && !isResultHandled) {
+                    isResultHandled = true;
+                    let goalMinX = canvas.width / 2 - 90;
+                    let goalMaxX = canvas.width / 2 + 90;
+                    let goalMaxY = canvas.height * 0.42;
 
-                if (ball.position.z <= -11.8 && ball.position.z >= -13) {
-                    const inGoalX = Math.abs(ball.position.x) < (goalWidth / 2 - ballRadius);
-                    const inGoalY = ball.position.y < (goalHeight - ballRadius) && ball.position.y > 0;
-                    const distToKeeper = ball.position.distanceTo(keeper.position);
+                    let distToKeeper = Math.abs(ball.x - keeper.x);
 
-                    if (inGoalX && inGoalY && distToKeeper > 1.2) {
-                        registerResult(true);
+                    if (ball.x >= goalMinX && ball.x <= goalMaxX && ball.y <= goalMaxY && distToKeeper > 45) {
+                        goals++;
+                        document.getElementById('goals-count').innerText = goals;
                     } else {
-                        registerResult(false);
+                        misses++;
+                        document.getElementById('misses-count').innerText = misses;
                     }
-                } else if (ball.position.z < -14 || Math.abs(ball.position.x) > 12) {
-                    registerResult(false);
+
+                    setTimeout(() => {
+                        resetBall();
+                        isResultHandled = false;
+                    }, 1500);
                 }
             }
-
-            renderer.render(scene, camera);
         }
 
-        let resultProcessed = false;
-        function registerResult(isGoal) {
-            if (resultProcessed) return;
-            resultProcessed = true;
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            if (isGoal) {
-                goals++;
-                document.getElementById('goals-count').innerText = goals;
-            } else {
-                misses++;
-                document.getElementById('misses-count').innerText = misses;
+            // 1. السماء
+            ctx.fillStyle = '#87CEFA';
+            ctx.fillRect(0, 0, canvas.width, canvas.height * 0.35);
+
+            // 2. المدرجات والجمهور
+            ctx.fillStyle = '#444';
+            ctx.fillRect(0, canvas.height * 0.28, canvas.width, canvas.height * 0.08);
+
+            let crowdColors = ['#e74c3c', '#3498db', '#f1c40f', '#9b59b6', '#1abc9c'];
+            for (let i = 10; i < canvas.width; i += 18) {
+                ctx.fillStyle = crowdColors[i % crowdColors.length];
+                ctx.fillRect(i, canvas.height * 0.29, 12, 16);
             }
 
-            setTimeout(() => {
-                resetBall();
-                keeper.position.set(0, 0, -11.5);
-                resultProcessed = false;
-            }, 1800);
+            // 3. الملعب الأخضر
+            let fieldGrad = ctx.createLinearGradient(0, canvas.height * 0.35, 0, canvas.height);
+            fieldGrad.addColorStop(0, '#2e7d32');
+            fieldGrad.addColorStop(1, '#1b5e20');
+            ctx.fillStyle = fieldGrad;
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height * 0.35);
+            ctx.lineTo(canvas.width, canvas.height * 0.35);
+            ctx.lineTo(canvas.width * 1.5, canvas.height);
+            ctx.lineTo(-canvas.width * 0.5, canvas.height);
+            ctx.fill();
+
+            // 4. خط منطقة الجزاء
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width * 0.2, canvas.height * 0.6);
+            ctx.lineTo(canvas.width * 0.8, canvas.height * 0.6);
+            ctx.stroke();
+
+            // 5. المرمى والشبكة
+            let gW = 200, gH = 90;
+            let gX = canvas.width / 2 - gW / 2;
+            let gY = canvas.height * 0.35 - 20;
+
+            // الشبكة
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 1;
+            for (let x = gX; x <= gX + gW; x += 10) {
+                ctx.beginPath(); ctx.moveTo(x, gY); ctx.lineTo(x, gY + gH); ctx.stroke();
+            }
+            for (let y = gY; y <= gY + gH; y += 10) {
+                ctx.beginPath(); ctx.moveTo(gX, y); ctx.lineTo(gX + gW, y); ctx.stroke();
+            }
+
+            // الأعمدة
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 6;
+            ctx.strokeRect(gX, gY, gW, gH);
+
+            // 6. حارس المرمى (قميص أصفر وشورت أبيض)
+            let kX = keeper.x, kY = gY + gH - 25;
+            ctx.fillStyle = '#fbc02d'; // قميص أصفر
+            ctx.fillRect(kX - 10, kY - 20, 20, 22);
+            ctx.fillStyle = '#ffffff'; // شورت أبيض
+            ctx.fillRect(kX - 10, kY + 2, 20, 10);
+            ctx.fillStyle = '#ffdbac'; // رأسه
+            ctx.beginPath(); ctx.arc(kX, kY - 26, 7, 0, Math.PI * 2); ctx.fill();
+
+            // 7. اللاعب (قميص وشورت قابلان للتغيير وشعر كثيف)
+            let pX = canvas.width / 2 - 50, pY = canvas.height * 0.72;
+            ctx.fillStyle = shirtColors[currentShirtIdx]; // قميص
+            ctx.fillRect(pX - 12, pY - 25, 24, 25);
+            ctx.fillStyle = shortsColors[currentShortsIdx]; // شورت
+            ctx.fillRect(pX - 12, pY, 24, 12);
+            ctx.fillStyle = '#ffffff'; // جوارب
+            ctx.fillRect(pX - 10, pY + 12, 7, 18);
+            ctx.fillRect(pX + 3, pY + 12, 7, 18);
+            ctx.fillStyle = '#1976d2'; // حذاء أزرق
+            ctx.fillRect(pX - 12, pY + 30, 9, 5);
+            ctx.fillRect(pX + 3, pY + 30, 9, 5);
+            ctx.fillStyle = '#ffdbac'; // رأس
+            ctx.beginPath(); ctx.arc(pX, pY - 32, 9, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#1a1a1a'; // شعر كثيف
+            ctx.beginPath(); ctx.arc(pX, pY - 35, 11, Math.PI, Math.PI * 2); ctx.fill();
+
+            // 8. الكرة (أبيض وأحمر)
+            let bRadius = 18 * ball.z;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(ball.x, ball.y, bRadius, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#d32f2f'; // لون أحمر على الكرة
+            ctx.beginPath(); ctx.arc(ball.x - 3, ball.y - 3, bRadius * 0.4, 0, Math.PI * 2); ctx.fill();
+
+            update();
+            requestAnimationFrame(draw);
         }
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        animate();
+        draw();
     </script>
 </body>
 </html>
