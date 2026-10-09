@@ -75,297 +75,342 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        window.addEventListener('load', function() {
-            const canvas = document.getElementById('gameCanvas');
-            const ctx = canvas.getContext('2d');
+        var canvas = document.getElementById('gameCanvas');
+        var ctx = canvas.getContext('2d');
 
-            function resizeCanvas() {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.onresize = resizeCanvas;
+
+        // --- الأصوات الاصطناعية ---
+        var AudioCtx = window.AudioContext || window.webkitAudioContext;
+        var audioCtx;
+        function initAudio() { if (!audioCtx) audioCtx = new AudioCtx(); }
+
+        function playKickSound() {
+            try {
+                initAudio();
+                var osc = audioCtx.createOscillator();
+                var gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+            } catch(e){}
+        }
+
+        function playCheerSound() {
+            try {
+                initAudio();
+                var duration = 2.0;
+                var bufferSize = audioCtx.sampleRate * duration;
+                var buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                var data = buffer.getChannelData(0);
+                for (var i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                var noise = audioCtx.createBufferSource(); noise.buffer = buffer;
+                var filter = audioCtx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 800;
+                var gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.01, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.3);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+                noise.start();
+            } catch(e){}
+        }
+
+        // --- متغيرات اللعبة ---
+        var level = 1, goals = 0, totalShots = 0, maxShots = 5;
+        var isKicking = false, isTouching = false, isResultProcessed = false, showTrophy = false;
+
+        var ball = { x: 0, y: 0, scale: 1, vx: 0, vy: 0, vScale: 0, inGoal: false };
+        var player = { x: 0, y: 0 };
+        var keeper = { x: 0, y: 0, targetX: 0, diveAngle: 0 };
+
+        var touchX = 0, touchY = 0, dragDx = 0, dragDy = 0;
+
+        function resetPositions() {
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height * 0.82;
+            ball.scale = 1;
+            ball.vx = 0; ball.vy = 0; ball.vScale = 0;
+            ball.inGoal = false;
+
+            player.x = canvas.width / 2 - 50;
+            player.y = canvas.height * 0.80;
+
+            keeper.x = canvas.width / 2;
+            keeper.y = canvas.height * 0.33;
+            keeper.targetX = canvas.width / 2;
+            keeper.diveAngle = 0;
+
+            isKicking = false;
+            isTouching = false;
+            isResultProcessed = false;
+            document.getElementById('banner').style.transform = 'translate(-50%, -50%) scale(0)';
+        }
+        resetPositions();
+
+        function handleStart(x, y) {
+            if (isKicking) return;
+            touchX = x; touchY = y;
+            isTouching = true;
+        }
+
+        function handleMove(x, y) {
+            if (isTouching && !isKicking) {
+                dragDx = x - touchX;
+                dragDy = y - touchY;
             }
-            resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
+        }
 
-            // --- الأصوات الاصطناعية ---
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            let audioCtx;
-            function initAudio() { if (!audioCtx) audioCtx = new AudioCtx(); }
-
-            function playKickSound() {
-                try {
-                    initAudio();
-                    const osc = audioCtx.createOscillator();
-                    const gain = audioCtx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(140, audioCtx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.15);
-                    gain.gain.setValueAtTime(1, audioCtx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-                    osc.connect(gain); gain.connect(audioCtx.destination);
-                    osc.start(); osc.stop(audioCtx.currentTime + 0.15);
-                } catch(e){}
-            }
-
-            function playCheerSound() {
-                try {
-                    initAudio();
-                    const duration = 2.0;
-                    const bufferSize = audioCtx.sampleRate * duration;
-                    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-                    const data = buffer.getChannelData(0);
-                    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-                    const noise = audioCtx.createBufferSource(); noise.buffer = buffer;
-                    const filter = audioCtx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 800;
-                    const gain = audioCtx.createGain(); gain.gain.setValueAtTime(0.01, audioCtx.currentTime);
-                    gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.3);
-                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-                    noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
-                    noise.start();
-                } catch(e){}
-            }
-
-            // --- متغيرات اللعبة ---
-            let level = 1, goals = 0, totalShots = 0, maxShots = 5;
-            let isKicking = false, isTouching = false, isResultProcessed = false, showTrophy = false;
-
-            let ball = { x: 0, y: 0, scale: 1, vx: 0, vy: 0, vScale: 0, inGoal: false };
-            let player = { x: 0, y: 0 };
-            let keeper = { x: 0, y: 0, targetX: 0, diveAngle: 0 };
-
-            let touchX = 0, touchY = 0, dragDx = 0, dragDy = 0;
-
-            function resetPositions() {
-                ball.x = canvas.width / 2;
-                ball.y = canvas.height * 0.82;
-                ball.scale = 1;
-                ball.vx = 0; ball.vy = 0; ball.vScale = 0;
-                ball.inGoal = false;
-
-                player.x = canvas.width / 2 - 50;
-                player.y = canvas.height * 0.80;
-
-                keeper.x = canvas.width / 2;
-                keeper.y = canvas.height * 0.33;
-                keeper.targetX = canvas.width / 2;
-                keeper.diveAngle = 0;
-
-                isKicking = false;
+        function handleEnd() {
+            if (isTouching && !isKicking) {
                 isTouching = false;
-                isResultProcessed = false;
-                document.getElementById('banner').style.transform = 'translate(-50%, -50%) scale(0)';
-            }
-            resetPositions();
+                if (dragDy < -25) {
+                    isKicking = true;
+                    totalShots++;
+                    document.getElementById('shots-count').innerText = totalShots + ' / ' + maxShots;
 
-            function handleStart(x, y) {
-                if (isKicking) return;
-                touchX = x; touchY = y;
-                isTouching = true;
-            }
+                    var stepCount = 0;
+                    var backInterval = setInterval(function() {
+                        player.y += 3; player.x -= 2; stepCount++;
+                        if (stepCount > 8) {
+                            clearInterval(backInterval);
+                            var runInterval = setInterval(function() {
+                                player.y -= 7; player.x += 4;
+                                if (player.y <= canvas.height * 0.81) {
+                                    clearInterval(runInterval);
+                                    playKickSound();
 
-            function handleMove(x, y) {
-                if (isTouching && !isKicking) {
-                    dragDx = x - touchX;
-                    dragDy = y - touchY;
-                }
-            }
+                                    ball.vx = dragDx * 0.06;
+                                    ball.vy = dragDy * 0.06;
+                                    ball.vScale = -0.012;
 
-            function handleEnd() {
-                if (isTouching && !isKicking) {
-                    isTouching = false;
-                    if (dragDy < -25) {
-                        isKicking = true;
-                        totalShots++;
-                        document.getElementById('shots-count').innerText = `${totalShots} / ${maxShots}`;
-
-                        let stepCount = 0;
-                        let backInterval = setInterval(() => {
-                            player.y += 3; player.x -= 2; stepCount++;
-                            if (stepCount > 8) {
-                                clearInterval(backInterval);
-                                let runInterval = setInterval(() => {
-                                    player.y -= 7; player.x += 4;
-                                    if (player.y <= canvas.height * 0.81) {
-                                        clearInterval(runInterval);
-                                        playKickSound();
-
-                                        ball.vx = dragDx * 0.06;
-                                        ball.vy = dragDy * 0.06;
-                                        ball.vScale = -0.012;
-
-                                        let goalW = Math.min(canvas.width * 0.65, 260);
-                                        keeper.targetX = (canvas.width / 2) + (Math.random() - 0.5) * (goalW - 40);
-                                        keeper.diveAngle = (keeper.targetX - keeper.x) * 0.012;
-                                    }
-                                }, 20);
-                            }
-                        }, 20);
-                    }
-                }
-            }
-
-            canvas.addEventListener('touchstart', e => handleStart(e.touches[0].clientX, e.touches[0].clientY));
-            canvas.addEventListener('touchmove', e => handleMove(e.touches[0].clientX, e.touches[0].clientY));
-            canvas.addEventListener('touchend', handleEnd);
-
-            canvas.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
-            canvas.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
-            canvas.addEventListener('mouseup', handleEnd);
-
-            function showBanner(text, type) {
-                const banner = document.getElementById('banner');
-                banner.innerText = text; banner.className = type + '-banner';
-                banner.style.transform = 'translate(-50%, -50%) scale(1)';
-            }
-
-            function update() {
-                if (isKicking) {
-                    if (!ball.inGoal) {
-                        ball.x += ball.vx;
-                        ball.y += ball.vy;
-                        ball.scale += ball.vScale;
-                        if (ball.scale < 0.38) ball.scale = 0.38;
-
-                        keeper.x += (keeper.targetX - keeper.x) * 0.12;
-                    } else {
-                        // استقرار الكرة داخل الشبكة
-                        ball.vx *= 0.8;
-                        ball.vy *= 0.8;
-                        ball.x += ball.vx;
-                        ball.y += ball.vy;
-                    }
-
-                    let goalY = canvas.height * 0.32;
-                    if (ball.y <= goalY + 15 && !isResultProcessed) {
-                        isResultProcessed = true;
-                        let goalW = Math.min(canvas.width * 0.65, 260);
-                        let gLeft = canvas.width / 2 - goalW / 2;
-                        let gRight = canvas.width / 2 + goalW / 2;
-                        let distToKeeper = Math.abs(ball.x - keeper.x);
-
-                        if (ball.x >= gLeft + 15 && ball.x <= gRight - 15 && distToKeeper > 40) {
-                            ball.inGoal = true;
-                            playCheerSound();
-                            showBanner('جووووول!', 'goal');
-                            goals++;
-                            document.getElementById('goals-count').innerText = goals;
-                        } else if (distToKeeper <= 40) {
-                            ball.vx *= -0.3;
-                            ball.vy *= -0.3;
-                            showBanner('تم التصدي!', 'miss');
-                        } else {
-                            showBanner('خارج المرمى!', 'miss');
-                        }
-
-                        setTimeout(() => {
-                            if (totalShots >= maxShots) {
-                                if (goals === maxShots) {
-                                    playCheerSound();
-                                    showBanner(`مبروك! اكملت المستوى ${level}`, 'win');
-                                    showTrophy = true;
-                                    setTimeout(() => showTrophy = false, 3000);
-                                    level++;
-                                    document.getElementById('level-count').innerText = level;
-                                } else {
-                                    showBanner(`انتهى الشوط! الأهداف ${goals}/${maxShots}`, 'miss');
+                                    var goalW = Math.min(canvas.width * 0.65, 260);
+                                    keeper.targetX = (canvas.width / 2) + (Math.random() - 0.5) * (goalW - 40);
+                                    keeper.diveAngle = (keeper.targetX - keeper.x) * 0.012;
                                 }
-                                goals = 0; totalShots = 0;
-                                document.getElementById('goals-count').innerText = goals;
-                                document.getElementById('shots-count').innerText = `0 / ${maxShots}`;
-                            }
-                            resetPositions();
-                        }, 2400);
-                    }
+                            }, 20);
+                        }
+                    }, 20);
                 }
             }
+        }
 
-            function draw() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+        canvas.addEventListener('touchstart', function(e) { handleStart(e.touches[0].clientX, e.touches[0].clientY); });
+        canvas.addEventListener('touchmove', function(e) { handleMove(e.touches[0].clientX, e.touches[0].clientY); });
+        canvas.addEventListener('touchend', handleEnd);
 
-                // 1. السماء المتدرجة
-                let skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.32);
-                skyGradient.addColorStop(0, '#1e3a8a');
-                skyGradient.addColorStop(1, '#3b82f6');
-                ctx.fillStyle = skyGradient;
-                ctx.fillRect(0, 0, canvas.width, canvas.height * 0.32);
+        canvas.addEventListener('mousedown', function(e) { handleStart(e.clientX, e.clientY); });
+        canvas.addEventListener('mousemove', function(e) { handleMove(e.clientX, e.clientY); });
+        canvas.addEventListener('mouseup', handleEnd);
 
-                // الجمهور
-                let colors = ['#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff'];
-                for (let i = 0; i < canvas.width; i += 12) {
-                    ctx.fillStyle = colors[i % colors.length];
-                    ctx.fillRect(i, canvas.height * 0.25, 8, 16);
+        function showBanner(text, type) {
+            var banner = document.getElementById('banner');
+            banner.innerText = text; banner.className = type + '-banner';
+            banner.style.transform = 'translate(-50%, -50%) scale(1)';
+        }
+
+        function update() {
+            if (isKicking) {
+                if (!ball.inGoal) {
+                    ball.x += ball.vx;
+                    ball.y += ball.vy;
+                    ball.scale += ball.vScale;
+                    if (ball.scale < 0.38) ball.scale = 0.38;
+
+                    keeper.x += (keeper.targetX - keeper.x) * 0.12;
+                } else {
+                    // استقرار الكرة داخل الشبكة
+                    ball.vx *= 0.8;
+                    ball.vy *= 0.8;
+                    ball.x += ball.vx;
+                    ball.y += ball.vy;
                 }
 
-                // 2. أرضية العشب
-                let grass = ctx.createLinearGradient(0, canvas.height * 0.32, 0, canvas.height);
-                grass.addColorStop(0, '#2d8a3c');
-                grass.addColorStop(1, '#15803d');
-                ctx.fillStyle = grass;
-                ctx.fillRect(0, canvas.height * 0.32, canvas.width, canvas.height * 0.68);
+                var goalY = canvas.height * 0.32;
+                if (ball.y <= goalY + 15 && !isResultProcessed) {
+                    isResultProcessed = true;
+                    var goalW = Math.min(canvas.width * 0.65, 260);
+                    var gLeft = canvas.width / 2 - goalW / 2;
+                    var gRight = canvas.width / 2 + goalW / 2;
+                    var distToKeeper = Math.abs(ball.x - keeper.x);
 
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-                for (let i = canvas.height * 0.32; i < canvas.height; i += 30) {
-                    ctx.fillRect(0, i, canvas.width, 15);
+                    if (ball.x >= gLeft + 15 && ball.x <= gRight - 15 && distToKeeper > 40) {
+                        ball.inGoal = true;
+                        playCheerSound();
+                        showBanner('جووووول!', 'goal');
+                        goals++;
+                        document.getElementById('goals-count').innerText = goals;
+                    } else if (distToKeeper <= 40) {
+                        ball.vx *= -0.3;
+                        ball.vy *= -0.3;
+                        showBanner('تم التصدي!', 'miss');
+                    } else {
+                        showBanner('خارج المرمى!', 'miss');
+                    }
+
+                    setTimeout(function() {
+                        if (totalShots >= maxShots) {
+                            if (goals === maxShots) {
+                                playCheerSound();
+                                showBanner('مبروك! اكملت المستوى ' + level, 'win');
+                                showTrophy = true;
+                                setTimeout(function() { showTrophy = false; }, 3000);
+                                level++;
+                                document.getElementById('level-count').innerText = level;
+                            } else {
+                                showBanner('انتهى الشوط! الأهداف ' + goals + '/' + maxShots, 'miss');
+                            }
+                            goals = 0; totalShots = 0;
+                            document.getElementById('goals-count').innerText = goals;
+                            document.getElementById('shots-count').innerText = '0 / ' + maxShots;
+                        }
+                        resetPositions();
+                    }, 2400);
                 }
+            }
+        }
 
-                // خط منطقة الجزاء
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-                ctx.lineWidth = 4;
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. السماء المتدرجة والمدرجات
+            var skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.32);
+            skyGradient.addColorStop(0, '#1e3a8a');
+            skyGradient.addColorStop(1, '#3b82f6');
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height * 0.32);
+
+            var colors = ['#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff'];
+            for (var i = 0; i < canvas.width; i += 12) {
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.fillRect(i, canvas.height * 0.25, 8, 16);
+            }
+
+            // 2. أرضية العشب
+            var grass = ctx.createLinearGradient(0, canvas.height * 0.32, 0, canvas.height);
+            grass.addColorStop(0, '#2d8a3c');
+            grass.addColorStop(1, '#15803d');
+            ctx.fillStyle = grass;
+            ctx.fillRect(0, canvas.height * 0.32, canvas.width, canvas.height * 0.68);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+            for (var j = canvas.height * 0.32; j < canvas.height; j += 30) {
+                ctx.fillRect(0, j, canvas.width, 15);
+            }
+
+            // خط منطقة الجزاء
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width * 0.1, canvas.height * 0.62);
+            ctx.lineTo(canvas.width * 0.9, canvas.height * 0.62);
+            ctx.stroke();
+
+            // 3. خط التوجيه والنيون
+            if (isTouching && !isKicking && dragDy < -10) {
+                ctx.strokeStyle = '#00ffcc';
+                ctx.lineWidth = 3;
+                ctx.setLineDash([6, 6]);
                 ctx.beginPath();
-                ctx.moveTo(canvas.width * 0.1, canvas.height * 0.62);
-                ctx.lineTo(canvas.width * 0.9, canvas.height * 0.62);
+                ctx.moveTo(ball.x, ball.y);
+                ctx.lineTo(ball.x + dragDx, ball.y + dragDy);
                 ctx.stroke();
+                ctx.setLineDash([]);
 
-                // 3. خط التوجيه والنيون
-                if (isTouching && !isKicking && dragDy < -10) {
-                    ctx.strokeStyle = '#00ffcc';
-                    ctx.lineWidth = 3;
-                    ctx.setLineDash([6, 6]);
-                    ctx.beginPath();
-                    ctx.moveTo(ball.x, ball.y);
-                    ctx.lineTo(ball.x + dragDx, ball.y + dragDy);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
+                ctx.fillStyle = '#00ffcc';
+                ctx.beginPath();
+                ctx.arc(ball.x + dragDx, ball.y + dragDy, 6, 0, Math.PI * 2);
+                ctx.fill();
+            }
 
-                    ctx.fillStyle = '#00ffcc';
-                    ctx.beginPath();
-                    ctx.arc(ball.x + dragDx, ball.y + dragDy, 6, 0, Math.PI * 2);
-                    ctx.fill();
-                }
+            // 4. المرمى والشبكة
+            var goalW = Math.min(canvas.width * 0.65, 260);
+            var goalH = 90;
+            var gX = canvas.width / 2 - goalW / 2;
+            var gY = canvas.height * 0.32 - 15;
 
-                // 4. المرمى والشبكة
-                let goalW = Math.min(canvas.width * 0.65, 260);
-                let goalH = 90;
-                let gX = canvas.width / 2 - goalW / 2;
-                let gY = canvas.height * 0.32 - 15;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            ctx.fillRect(gX, gY, goalW, goalH);
 
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-                ctx.fillRect(gX, gY, goalW, goalH);
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 1;
+            for (var x = gX; x <= gX + goalW; x += 10) {
+                ctx.beginPath(); ctx.moveTo(x, gY); ctx.lineTo(x, gY + goalH); ctx.stroke();
+            }
+            for (var y = gY; y <= gY + goalH; y += 10) {
+                ctx.beginPath(); ctx.moveTo(gX, y); ctx.lineTo(gX + goalW, y); ctx.stroke();
+            }
 
-                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-                ctx.lineWidth = 1;
-                for (let x = gX; x <= gX + goalW; x += 10) {
-                    ctx.beginPath(); ctx.moveTo(x, gY); ctx.lineTo(x, gY + goalH); ctx.stroke();
-                }
-                for (let y = gY; y <= gY + goalH; y += 10) {
-                    ctx.beginPath(); ctx.moveTo(gX, y); ctx.lineTo(gX + goalW, y); ctx.stroke();
-                }
+            // 5. الكرة
+            var r = 16 * ball.scale;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(ball.x, ball.y, r, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#111111';
+            ctx.beginPath(); ctx.arc(ball.x - r*0.3, ball.y - r*0.3, r * 0.4, 0, Math.PI * 2); ctx.fill();
 
-                // 5. الكرة
-                let r = 16 * ball.scale;
-                ctx.fillStyle = '#ffffff';
-                ctx.beginPath(); ctx.arc(ball.x, ball.y, r, 0, Math.PI * 2); ctx.fill();
+            // العارضة والقائمين
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(gX, gY, goalW, goalH);
+
+            // 6. حارس المرمى
+            ctx.save();
+            ctx.translate(keeper.x, keeper.y);
+            ctx.rotate(keeper.diveAngle);
+
+            ctx.fillStyle = '#fbc02d';
+            ctx.fillRect(-12, -20, 24, 22);
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(-12, 2, 24, 12);
+            ctx.fillStyle = '#c68642';
+            ctx.beginPath(); ctx.arc(0, -26, 8, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(-22, -18, 9, 9);
+            ctx.fillRect(13, -18, 9, 9);
+            ctx.restore();
+
+            // 7. اللاعب (محمد صلاح)
+            var pX = player.x, pY = player.y;
+            ctx.fillStyle = '#d32f2f';
+            ctx.fillRect(pX - 14, pY - 28, 28, 28);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(pX - 14, pY, 28, 14);
+
+            ctx.fillStyle = '#c68642';
+            ctx.fillRect(pX - 11, pY + 14, 8, 18);
+            ctx.fillRect(pX + 3, pY + 14, 8, 18);
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(pX - 13, pY + 32, 10, 6);
+            ctx.fillRect(pX + 3, pY + 32, 10, 6);
+
+            ctx.fillStyle = '#c68642';
+            ctx.beginPath(); ctx.arc(pX, pY - 35, 10, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#1a0f00';
+            ctx.beginPath(); ctx.arc(pX, pY - 38, 12, Math.PI, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(pX, pY - 33, 10.5, 0, Math.PI); ctx.fill();
+
+            if (showTrophy) {
+                ctx.fillStyle = '#ffd700';
+                ctx.beginPath();
+                ctx.arc(canvas.width / 2, canvas.height * 0.45, 35, 0, Math.PI * 2);
+                ctx.fill();
                 ctx.fillStyle = '#111111';
-                ctx.beginPath(); ctx.arc(ball.x - r*0.3, ball.y - r*0.3, r * 0.4, 0, Math.PI * 2); ctx.fill();
+                ctx.font = 'bold 20px sans-serif';
+                ctx.fillText('🏆', canvas.width / 2 - 12, canvas.height * 0.45 + 7);
+            }
 
-                // العارضة والقائمين
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 8;
-                ctx.strokeRect(gX, gY, goalW, goalH);
+            update();
+            requestAnimationFrame(draw);
+        }
 
-                // 6. حارس المرمى
-                ctx.save();
-                ctx.translate(keeper.x, keeper.y);
-                ctx.rotate(keeper.diveAngle);
-
-                ctx.fillStyle = '#fbc02d';
-                ctx.fillRect(-12, -20, 24, 22);
+        draw();
+    </script>
+</body>
+</html>
