@@ -20,89 +20,94 @@
         }
         #scoreboard {
             position: absolute;
-            top: 20px;
+            top: 15px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(15, 23, 42, 0.75);
+            background: rgba(15, 23, 42, 0.85);
             backdrop-filter: blur(12px);
             color: #fff;
-            padding: 12px 30px;
+            padding: 10px 25px;
             border-radius: 30px;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 800;
             display: flex;
-            gap: 30px;
+            gap: 20px;
             border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 15px 25px rgba(0, 0, 0, 0.5);
             z-index: 10;
         }
-        .goals { color: #10B981; text-shadow: 0 0 10px rgba(16,185,129,0.5); }
-        .misses { color: #EF4444; text-shadow: 0 0 10px rgba(239,68,68,0.5); }
+        .level { color: #F59E0B; }
+        .goals { color: #10B981; }
+        .shots { color: #3B82F6; }
+        
         #ui-controls {
             position: absolute;
-            bottom: 25px;
-            right: 25px;
+            bottom: 20px;
+            right: 20px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
             z-index: 10;
         }
         .btn {
             background: linear-gradient(135deg, #2563EB, #1D4ED8);
             color: white;
             border: none;
-            padding: 12px 20px;
+            padding: 10px 18px;
             border-radius: 12px;
             font-weight: bold;
-            font-size: 14px;
-            box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4);
+            font-size: 13px;
+            box-shadow: 0 8px 15px rgba(37, 99, 235, 0.3);
             cursor: pointer;
             transition: all 0.2s ease;
         }
-        .btn:hover { transform: translateY(-2px); }
-        .btn:active { transform: translateY(1px); }
+        .btn:active { transform: translateY(2px); }
+
         #instructions {
             position: absolute;
-            bottom: 30px;
+            bottom: 25px;
             left: 50%;
             transform: translateX(-50%);
             color: #F8FAFC;
             background: rgba(15, 23, 42, 0.8);
             backdrop-filter: blur(8px);
-            padding: 10px 24px;
+            padding: 8px 20px;
             border-radius: 20px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             pointer-events: none;
             z-index: 10;
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
+
         #banner {
             position: absolute;
-            top: 40%;
+            top: 35%;
             left: 50%;
             transform: translate(-50%, -50%) scale(0);
-            font-size: 48px;
+            font-size: 42px;
             font-weight: 900;
             text-shadow: 0 10px 20px rgba(0,0,0,0.8);
             z-index: 20;
             transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             pointer-events: none;
+            text-align: center;
         }
         .goal-banner { color: #10B981; }
         .miss-banner { color: #EF4444; }
+        .win-banner { color: #F59E0B; }
     </style>
-    <!-- تضمين مكتبة Three.js لجرافيك 3D -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
     <div id="scoreboard">
+        <div>المستوى: <span id="level-count" class="level">1</span></div>
         <div>الأهداف: <span id="goals-count" class="goals">0</span></div>
-        <div>الضائعة: <span id="misses-count" class="misses">0</span></div>
+        <div>الرميات: <span id="shots-count" class="shots">0 / 5</span></div>
     </div>
 
-    <div id="instructions">اسحب الكرة للأعلى باتجاه المرمى للتسديد!</div>
+    <div id="instructions">اسحب الكرة للأعلى للتسديد (اسحب بشكل مائل لجلعها تنحرف)!</div>
 
     <div id="banner"></div>
 
@@ -114,20 +119,18 @@
     <div id="webgl-container"></div>
 
     <script>
-        // --- 1. إعداد المحرك والأصوات Synthetic Sound Engine ---
+        // --- 1. المحرك الصوتي الاصطناعي ---
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         let audioCtx;
 
-        function initAudio() {
-            if (!audioCtx) audioCtx = new AudioCtx();
-        }
+        function initAudio() { if (!audioCtx) audioCtx = new AudioCtx(); }
 
         function playKickSound() {
             initAudio();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+            osc.frequency.setValueAtTime(140, audioCtx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.15);
             gain.gain.setValueAtTime(1, audioCtx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
@@ -177,7 +180,7 @@
 
             const gain = audioCtx.createGain();
             gain.gain.setValueAtTime(0.01, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.5);
+            gain.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 0.4);
             gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
 
             noise.connect(filter);
@@ -186,15 +189,14 @@
             noise.start();
         }
 
-        // --- 2. إعداد مشهد 3D (Scene, Camera, Renderer) ---
+        // --- 2. إعداد المشهد ثلاثي الأبعاد ---
         const container = document.getElementById('webgl-container');
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB);
-        scene.fog = new THREE.FogExp2(0x87CEEB, 0.012);
+        scene.background = new THREE.Color(0x70c5ff);
+        scene.fog = new THREE.FogExp2(0x70c5ff, 0.01);
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 2.2, 10);
-
+        
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -202,207 +204,218 @@
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         container.appendChild(renderer.domElement);
 
-        // --- 3. الإضاءة Lighting ---
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
-        hemiLight.position.set(0, 50, 0);
-        scene.add(hemiLight);
+        // الإضاءة
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
 
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(-20, 40, 20);
+        dirLight.position.set(-15, 30, 20);
         dirLight.castShadow = true;
         dirLight.shadow.mapSize.width = 2048;
         dirLight.shadow.mapSize.height = 2048;
-        dirLight.shadow.camera.near = 0.5;
-        dirLight.shadow.camera.far = 100;
-        dirLight.shadow.camera.left = -20;
-        dirLight.shadow.camera.right = 20;
-        dirLight.shadow.camera.top = 20;
-        dirLight.shadow.camera.bottom = -20;
         scene.add(dirLight);
 
-        // --- 4. بناء عناصر البيئة (الملعب، المرمى، الجمهور) ---
-        // العشب
-        const pitchGeo = new THREE.PlaneGeometry(80, 100);
-        const pitchMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.8 });
-        const pitch = new THREE.Mesh(pitchGeo, pitchMat);
+        // --- 3. أرضية الملعب والمرمى ---
+        const pitch = new THREE.Mesh(
+            new THREE.PlaneGeometry(80, 100),
+            new THREE.MeshStandardMaterial({ color: 0x2d8a3c, roughness: 0.8 })
+        );
         pitch.rotation.x = -Math.PI / 2;
         pitch.receiveShadow = true;
         scene.add(pitch);
 
-        // شرائط العشب الملونة
-        for (let i = -50; i < 50; i += 5) {
-            if ((i / 5) % 2 === 0) {
-                const stripeGeo = new THREE.PlaneGeometry(80, 5);
-                const stripeMat = new THREE.MeshStandardMaterial({ color: 0x388e3c, roughness: 0.8 });
-                const stripe = new THREE.Mesh(stripeGeo, stripeMat);
-                stripe.rotation.x = -Math.PI / 2;
-                stripe.position.set(0, 0.01, i + 2.5);
-                stripe.receiveShadow = true;
-                scene.add(stripe);
-            }
-        }
-
-        // خط منطقة الجزاء
+        // خطوط الملعب
         const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const penLine = new THREE.Mesh(new THREE.PlaneGeometry(24, 0.2), lineMat);
+        const penLine = new THREE.Mesh(new THREE.PlaneGeometry(20, 0.15), lineMat);
         penLine.rotation.x = -Math.PI / 2;
-        penLine.position.set(0, 0.02, 0);
+        penLine.position.set(0, 0.01, 0);
         scene.add(penLine);
 
-        // المرمى (Goal Posts)
-        const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.2, roughness: 0.3 });
+        // المرمى
         const goalGroup = new THREE.Group();
-        
-        const postRadius = 0.12;
-        const goalWidth = 7.32;
-        const goalHeight = 2.44;
+        const postMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.2, metalness: 0.1 });
+        const goalWidth = 7.32, goalHeight = 2.44;
 
-        // القائم الأيسر والأيمن
-        const leftPost = new THREE.Mesh(new THREE.CylinderGeometry(postRadius, postRadius, goalHeight), postMat);
+        const leftPost = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, goalHeight), postMat);
         leftPost.position.set(-goalWidth / 2, goalHeight / 2, -15);
         leftPost.castShadow = true;
 
         const rightPost = leftPost.clone();
         rightPost.position.x = goalWidth / 2;
 
-        // العارضة
-        const crossbar = new THREE.Mesh(new THREE.CylinderGeometry(postRadius, postRadius, goalWidth), postMat);
+        const crossbar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, goalWidth), postMat);
         crossbar.rotation.z = Math.PI / 2;
         crossbar.position.set(0, goalHeight, -15);
         crossbar.castShadow = true;
 
         goalGroup.add(leftPost, rightPost, crossbar);
 
-        // شبكة المرمى (Goal Net)
-        const netGeo = new THREE.PlaneGeometry(goalWidth, goalHeight, 20, 10);
-        const netMat = new THREE.MeshBasicMaterial({ color: 0xdddddd, wireframe: true, transparent: true, opacity: 0.4 });
+        // الشبكة
+        const netGeo = new THREE.PlaneGeometry(goalWidth, goalHeight, 24, 12);
+        const netMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.35 });
         const net = new THREE.Mesh(netGeo, netMat);
-        net.position.set(0, goalHeight / 2, -16.5);
+        net.position.set(0, goalHeight / 2, -16);
         goalGroup.add(net);
         scene.add(goalGroup);
 
-        // الجمهور (Stadium Crowd)
-        const crowdGeo = new THREE.BufferGeometry();
-        const crowdCount = 1500;
-        const crowdPositions = new Float32Array(crowdCount * 3);
-        const crowdColors = new Float32Array(crowdCount * 3);
+        // الكأس ثلاثي الأبعاد (Gold Trophy)
+        const trophyGroup = new THREE.Group();
+        const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8, roughness: 0.2 });
+        
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 0.4, 16), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+        base.position.y = 0.2;
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.8, 16), goldMat);
+        stem.position.y = 0.8;
+        const cup = new THREE.Mesh(new THREE.ConeGeometry(0.6, 0.9, 16, 1, true), goldMat);
+        cup.position.y = 1.5;
+        cup.rotation.x = Math.PI;
 
-        for (let i = 0; i < crowdCount; i++) {
-            crowdPositions[i * 3] = (Math.random() - 0.5) * 70;
-            crowdPositions[i * 3 + 1] = 4 + Math.random() * 8;
-            crowdPositions[i * 3 + 2] = -20 - Math.random() * 15;
+        trophyGroup.add(base, stem, cup);
+        trophyGroup.position.set(0, 0, -10);
+        trophyGroup.visible = false;
+        scene.add(trophyGroup);
 
-            crowdColors[i * 3] = Math.random();
-            crowdColors[i * 3 + 1] = Math.random();
-            crowdColors[i * 3 + 2] = Math.random();
-        }
-        crowdGeo.setAttribute('position', new THREE.BufferAttribute(crowdPositions, 3));
-        crowdGeo.setAttribute('color', new THREE.BufferAttribute(crowdColors, 3));
-        const crowdMat = new THREE.PointsMaterial({ size: 0.4, vertexColors: true });
-        const crowd = new THREE.Points(crowdGeo, crowdMat);
-        scene.add(crowd);
-
-        // --- 5. إنشاء كرة القدم (Football 3D) ---
-        const ballRadius = 0.24;
-        const ballGeo = new THREE.SphereGeometry(ballRadius, 32, 32);
-        const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
-        const ballMesh = new THREE.Mesh(ballGeo, ballMat);
+        // --- 4. كرة القدم 3D ---
+        const ballRadius = 0.23;
+        const ballMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(ballRadius, 32, 32),
+            new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 })
+        );
         ballMesh.castShadow = true;
         scene.add(ballMesh);
 
-        // بقع سوداء على الكرة للتفاصيل
-        for(let i=0; i<6; i++) {
-            const spotGeo = new THREE.BufferGeometry();
-            const spotMat = new THREE.MeshBasicMaterial({color: 0x111111});
-            const spot = new THREE.Mesh(new THREE.SphereGeometry(ballRadius * 1.01, 8, 8), spotMat);
-            spot.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
-            ballMesh.add(spot);
+        // رسم نقش الكرة
+        for(let i = 0; i < 8; i++) {
+            const patch = new THREE.Mesh(
+                new THREE.SphereGeometry(ballRadius * 1.01, 6, 6, 0, Math.PI/3, 0, Math.PI/3),
+                new THREE.MeshBasicMaterial({ color: 0x111111 })
+            );
+            patch.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+            ballMesh.add(patch);
         }
 
-        // --- 6. بناء مجسمات اللاعبين 3D ---
+        // --- 5. تصمـيـم الـلاعـبـيـن (مظهر بشري محسّن) ---
         const shirtMaterials = [
-            new THREE.MeshStandardMaterial({ color: 0xd32f2f, roughness: 0.5 }), // أحمر
-            new THREE.MeshStandardMaterial({ color: 0x1976d2, roughness: 0.5 }), // أزرق
-            new THREE.MeshStandardMaterial({ color: 0x388e3c, roughness: 0.5 }), // أخضر
-            new THREE.MeshStandardMaterial({ color: 0x7b1fa2, roughness: 0.5 }), // بنفسجي
-            new THREE.MeshStandardMaterial({ color: 0xf57c00, roughness: 0.5 })  // برتقالي
+            new THREE.MeshStandardMaterial({ color: 0xd32f2f, roughness: 0.6 }),
+            new THREE.MeshStandardMaterial({ color: 0x1976d2, roughness: 0.6 }),
+            new THREE.MeshStandardMaterial({ color: 0x388e3c, roughness: 0.6 }),
+            new THREE.MeshStandardMaterial({ color: 0x7b1fa2, roughness: 0.6 })
         ];
 
         const shortsMaterials = [
-            new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }), // أبيض
-            new THREE.MeshStandardMaterial({ color: 0x212121, roughness: 0.5 }), // أسود
-            new THREE.MeshStandardMaterial({ color: 0x1976d2, roughness: 0.5 })  // أزرق
+            new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }),
+            new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 })
         ];
 
         let currentShirtIdx = 0;
         let currentShortsIdx = 0;
 
-        function createHumanoid(shirtMat, shortsMat, skinColor = 0xffdbac) {
-            const group = new THREE.Group();
-            const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.6 });
+        function createDetailedPlayer(shirtMat, shortsMat, hasSalahHair = false) {
+            const player = new THREE.Group();
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xc68642, roughness: 0.7 });
 
-            // الجذع / القميص
-            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, 0.3), shirtMat);
-            torso.position.y = 1.25;
-            torso.castShadow = true;
-            group.add(torso);
-
-            // الرأس
+            // الرأس والوجه
             const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), skinMat);
             head.position.y = 1.75;
+            head.scale.set(1, 1.15, 1);
             head.castShadow = true;
-            group.add(head);
+            player.add(head);
+
+            // الشعر واللحية (تصميم محمد صلاح)
+            if (hasSalahHair) {
+                const hairMat = new THREE.MeshStandardMaterial({ color: 0x1a0f00, roughness: 0.9 });
+                const hair = new THREE.Mesh(new THREE.SphereGeometry(0.21, 16, 16), hairMat);
+                hair.position.set(0, 1.82, -0.02);
+                player.add(hair);
+
+                // اللحية
+                const beard = new THREE.Mesh(new THREE.SphereGeometry(0.185, 12, 12, 0, Math.PI*2, Math.PI/2, Math.PI/2), hairMat);
+                beard.position.set(0, 1.71, 0.01);
+                player.add(beard);
+            }
+
+            // الجذع والقميص
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.65, 0.28), shirtMat);
+            torso.position.y = 1.25;
+            torso.castShadow = true;
+            player.add(torso);
+
+            // الذراعين
+            const armGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.55);
+            const leftArm = new THREE.Mesh(armGeo, skinMat);
+            leftArm.position.set(-0.32, 1.25, 0);
+            leftArm.rotation.z = 0.2;
+            player.add(leftArm);
+
+            const rightArm = new THREE.Mesh(armGeo, skinMat);
+            rightArm.position.set(0.32, 1.25, 0);
+            rightArm.rotation.z = -0.2;
+            player.add(rightArm);
 
             // الشورت
-            const shorts = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.35, 0.32), shortsMat);
-            shorts.position.y = 0.82;
+            const shorts = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.3, 0.3), shortsMat);
+            shorts.position.y = 0.85;
             shorts.castShadow = true;
-            group.add(shorts);
+            player.add(shorts);
 
-            // الأرجل (حاملة للحركة)
-            const legGeo = new THREE.CylinderGeometry(0.08, 0.07, 0.65);
-            
+            // الأرجل والجوارب
+            const legGroupR = new THREE.Group();
+            const legGroupL = new THREE.Group();
+
+            const legGeo = new THREE.CylinderGeometry(0.07, 0.06, 0.6);
             const leftLeg = new THREE.Mesh(legGeo, skinMat);
-            leftLeg.position.set(-0.18, 0.35, 0);
-            leftLeg.castShadow = true;
-            group.add(leftLeg);
+            leftLeg.position.y = -0.3;
+            legGroupL.add(leftLeg);
+            legGroupL.position.set(-0.16, 0.7, 0);
 
             const rightLeg = new THREE.Mesh(legGeo, skinMat);
-            rightLeg.position.set(0.18, 0.35, 0);
-            rightLeg.castShadow = true;
-            group.add(rightLeg);
+            rightLeg.position.y = -0.3;
+            legGroupR.add(rightLeg);
+            legGroupR.position.set(0.16, 0.7, 0);
 
-            return { group, leftLeg, rightLeg, torso, head };
+            // الحذاء الرياضي
+            const shoeGeo = new THREE.BoxGeometry(0.1, 0.08, 0.22);
+            const shoeMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+            const shoeL = new THREE.Mesh(shoeGeo, shoeMat);
+            shoeL.position.set(-0.16, 0.04, 0.05);
+            const shoeR = new THREE.Mesh(shoeGeo, shoeMat);
+            shoeR.position.set(0.16, 0.04, 0.05);
+
+            player.add(legGroupL, legGroupR, shoeL, shoeR);
+
+            return { group: player, torso, shorts, legR: legGroupR, legL: legGroupL, rightArm, leftArm };
         }
 
-        // إنشاء المهاجم وحارس المرمى
-        const playerObj = createHumanoid(shirtMaterials[currentShirtIdx], shortsMaterials[currentShortsIdx]);
+        const playerObj = createDetailedPlayer(shirtMaterials[currentShirtIdx], shortsMaterials[currentShortsIdx], true);
         scene.add(playerObj.group);
 
-        const keeperMat = new THREE.MeshStandardMaterial({ color: 0xfbc02d, roughness: 0.5 }); // أصفر
-        const keeperObj = createHumanoid(keeperMat, shortsMaterials[0]);
+        const keeperMat = new THREE.MeshStandardMaterial({ color: 0xfbc02d, roughness: 0.5 });
+        const keeperObj = createDetailedPlayer(keeperMat, shortsMaterials[0], false);
         scene.add(keeperObj.group);
 
-        // --- 7. منطق الحركة والتسديد (Game Logic) ---
-        let goals = 0, misses = 0;
+        // --- 6. نظام اللعبة والاحصائيات (Game Stats & Curve Mechanics) ---
+        let level = 1;
+        let goals = 0;
+        let totalShots = 0;
+        let maxShots = 5;
+
         let isKicking = false;
         let isResultProcessed = false;
 
         let ballVel = new THREE.Vector3();
-        let keeperTargetX = 0;
-        let keeperTargetY = 1.2;
+        let ballCurve = 0; // انحناء الكرة أثناء الطيران
 
-        function resetMatch() {
+        function resetPositions() {
             ballMesh.position.set(0, ballRadius, 4.5);
             ballVel.set(0, 0, 0);
+            ballCurve = 0;
 
-            playerObj.group.position.set(-0.8, 0, 5.8);
-            playerObj.group.rotation.y = 0.2;
-            playerObj.rightLeg.rotation.x = 0;
+            playerObj.group.position.set(-0.7, 0, 5.7);
+            playerObj.group.rotation.set(0, 0.2, 0);
+            playerObj.legR.rotation.x = 0;
 
             keeperObj.group.position.set(0, 0, -14.5);
-            keeperObj.group.rotation.y = 0;
-            keeperObj.group.position.y = 0;
+            keeperObj.group.rotation.set(0, 0, 0);
 
             camera.position.set(0, 2.0, 8.5);
             camera.lookAt(0, 1.2, -15);
@@ -411,9 +424,9 @@
             isResultProcessed = false;
             document.getElementById('banner').style.transform = 'translate(-50%, -50%) scale(0)';
         }
-        resetMatch();
+        resetPositions();
 
-        // التفاعل وتغيير الملابس
+        // التفاعل مع تغيير الملابس
         document.getElementById('shirtBtn').addEventListener('click', (e) => {
             e.stopPropagation();
             currentShirtIdx = (currentShirtIdx + 1) % shirtMaterials.length;
@@ -426,83 +439,103 @@
             playerObj.shorts.material = shortsMaterials[currentShortsIdx];
         });
 
-        // التقاط حركة السحب (Swipe Control)
-        let touchStartX = 0, touchStartY = 0;
+        // التحكم باللمس والماوس (مع خاصية الانحناء Curve)
+        let startX = 0, startY = 0;
 
-        function onPointerDown(x, y) {
+        function handleStart(x, y) {
             if (isKicking) return;
-            touchStartX = x;
-            touchStartY = y;
+            startX = x;
+            startY = y;
         }
 
-        function onPointerUp(x, y) {
+        function handleEnd(x, y) {
             if (isKicking) return;
-            const dx = x - touchStartX;
-            const dy = y - touchStartY;
+            const dx = x - startX;
+            const dy = y - startY;
 
-            if (dy < -30) { // سحب للأعلى
+            if (dy < -25) { // تسديد نحو المرمى
                 playKickSound();
                 isKicking = true;
+                totalShots++;
+                document.getElementById('shots-count').innerText = `${totalShots} / ${maxShots}`;
 
-                // حساب سرعة الكرة ثلاثية الأبعاد بناءً على قوة واتجاه السحب
-                const speed = Math.min(Math.abs(dy) * 0.0008, 0.45);
-                ballVel.x = dx * 0.008;
-                ballVel.y = Math.min(Math.abs(dy) * 0.004, 0.28);
-                ballVel.z = -speed - 0.25;
+                // قوة وسرعة الكرة
+                const speed = Math.min(Math.abs(dy) * 0.0009, 0.42);
+                ballVel.x = dx * 0.005;
+                ballVel.y = Math.min(Math.abs(dy) * 0.0035, 0.25);
+                ballVel.z = -speed - 0.22;
+
+                // انحناء الكرة في الهواء
+                ballCurve = dx * 0.00015;
 
                 // حركة ركلة المهاجم
-                playerObj.rightLeg.rotation.x = -Math.PI / 3;
+                playerObj.legR.rotation.x = -Math.PI / 2.5;
 
-                // تحريك الحارس تلقائياً للتصدي (ذكاء اصطناعي بسيط)
-                keeperTargetX = (Math.random() - 0.5) * (goalWidth - 1);
-                keeperTargetY = Math.random() > 0.5 ? 1.5 : 0;
+                // قفزة/انقضاض الحارس باتجاه مسار الكرة التقديري
+                const targetX = ballVel.x * 35;
+                const targetY = ballVel.y * 15;
+
+                // انقضاض الجسد كاملاً للحارس (Dive)
+                keeperObj.group.position.x = Math.max(-goalWidth/2, Math.min(goalWidth/2, targetX));
+                keeperObj.group.position.y = Math.min(1.2, targetY);
+                keeperObj.group.rotation.z = -targetX * 0.2; // إمالة الجسد
             }
         }
 
-        window.addEventListener('mousedown', e => onPointerDown(e.clientX, e.clientY));
-        window.addEventListener('mouseup', e => onPointerUp(e.clientX, e.clientY));
-        window.addEventListener('touchstart', e => onPointerDown(e.touches[0].clientX, e.touches[0].clientY));
-        window.addEventListener('touchend', e => onPointerUp(e.changedTouches[0].clientX, e.changedTouches[0].clientY));
+        window.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
+        window.addEventListener('mouseup', e => handleEnd(e.clientX, e.clientY));
+        window.addEventListener('touchstart', e => handleStart(e.touches[0].clientX, e.touches[0].clientY));
+        window.addEventListener('touchend', e => handleEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY));
 
-        function showBanner(text, isGoal) {
+        function showBanner(text, type) {
             const banner = document.getElementById('banner');
             banner.innerText = text;
-            banner.className = isGoal ? 'goal-banner' : 'miss-banner';
+            banner.className = type + '-banner';
             banner.style.transform = 'translate(-50%, -50%) scale(1)';
         }
 
-        // --- 8. حلقة التحديث والرسم (Animation Loop) ---
+        function triggerConfettiAndTrophy() {
+            trophyGroup.visible = true;
+            trophyGroup.position.set(0, 1.2, -8);
+
+            // تدوير الكأس
+            let angle = 0;
+            const interval = setInterval(() => {
+                angle += 0.05;
+                trophyGroup.rotation.y = angle;
+            }, 16);
+
+            setTimeout(() => {
+                clearInterval(interval);
+                trophyGroup.visible = false;
+            }, 3500);
+        }
+
+        // --- 7. حلقة الحركة والرسم (Animation Loop) ---
         const clock = new THREE.Clock();
 
         function animate() {
             requestAnimationFrame(animate);
-            const delta = clock.getDelta();
 
             if (isKicking) {
-                // تحديث موقع الكرة
+                // تطبيق الانحناء والسرعة على الكرة
+                ballVel.x += ballCurve;
                 ballMesh.position.add(ballVel);
-                ballVel.y -= 0.008; // تأثير الجاذبية
+                ballVel.y -= 0.007; // الجاذبية
+
                 if (ballMesh.position.y < ballRadius) {
                     ballMesh.position.y = ballRadius;
-                    ballVel.y *= -0.5; // ارتداد من الأرض
+                    ballVel.y *= -0.4;
                 }
 
-                // دوران الكرة أثناء الطيران
-                ballMesh.rotation.x += 0.1;
-                ballMesh.rotation.y += 0.05;
+                // دوران الكرة
+                ballMesh.rotation.x += 0.12;
+                ballMesh.rotation.y += ballCurve * 10;
 
-                // انقضاض الحارس نحو الهدف
-                keeperObj.group.position.x += (keeperTargetX - keeperObj.group.position.x) * 0.1;
-                if (keeperTargetY > 0) {
-                    keeperObj.group.position.y += (keeperTargetY - keeperObj.group.position.y) * 0.1;
-                    keeperObj.group.rotation.z = -keeperTargetX * 0.1;
-                }
+                // تتبع الكاميرا
+                camera.position.x += (ballMesh.position.x * 0.2 - camera.position.x) * 0.05;
 
-                // الكاميرا تتبع الكرة بمرونة
-                camera.position.x += (ballMesh.position.x * 0.3 - camera.position.x) * 0.05;
-                camera.position.y += (2.0 + ballMesh.position.y * 0.2 - camera.position.y) * 0.05;
-
-                // التحقق من الهدف أو الصد عند خط المرمى
+                // تقييم الهدف أو الصد
                 if (ballMesh.position.z <= -14.8 && !isResultProcessed) {
                     isResultProcessed = true;
 
@@ -510,32 +543,48 @@
                     const inGoalX = Math.abs(ballMesh.position.x) < (goalWidth / 2 - 0.2);
                     const inGoalY = ballMesh.position.y < (goalHeight - 0.1) && ballMesh.position.y > 0.2;
 
-                    if (distToKeeper < 1.2) { // الحارس صد الكرة
+                    if (distToKeeper < 1.1) {
                         playSaveSound();
-                        showBanner('تم التصدي!', false);
-                        misses++;
-                        document.getElementById('misses-count').innerText = misses;
-                        ballVel.set(0, 0.1, 0.2); // ارتداد الكرة من الحارس
-                    } else if (inGoalX && inGoalY) { // هدف!
+                        showBanner('تم التصدي!', 'miss');
+                        ballVel.set(0, 0.1, 0.15);
+                    } else if (inGoalX && inGoalY) {
                         playCheerSound();
-                        showBanner('جووووول!', true);
+                        showBanner('جووووول!', 'goal');
                         goals++;
                         document.getElementById('goals-count').innerText = goals;
-                        ballVel.multiplyScalar(0.2); // تباطؤ عند الاططدام بالشبكة
-                    } else { // خارج المرمى
-                        showBanner('خارج المرمى!', false);
-                        misses++;
-                        document.getElementById('misses-count').innerText = misses;
+                        ballVel.multiplyScalar(0.15);
+                    } else {
+                        showBanner('خارج المرمى!', 'miss');
                     }
 
-                    setTimeout(resetMatch, 2200);
+                    // إدارة انتهاء الشوط (5 ركلات)
+                    setTimeout(() => {
+                        if (totalShots >= maxShots) {
+                            if (goals === maxShots) {
+                                // الفوز الكامل والتأهل للمستوى التالي
+                                playCheerSound();
+                                showBanner(`مبروك! اكتمل المستوى ${level}`, 'win');
+                                triggerConfettiAndTrophy();
+                                level++;
+                                document.getElementById('level-count').innerText = level;
+                            } else {
+                                showBanner(`انتهى الشوط! الأهداف: ${goals}/${maxShots}`, 'miss');
+                            }
+
+                            // إرجاع العدادات إلى الصفر للشوط الجديد
+                            goals = 0;
+                            totalShots = 0;
+                            document.getElementById('goals-count').innerText = goals;
+                            document.getElementById('shots-count').innerText = `0 / ${maxShots}`;
+                        }
+                        resetPositions();
+                    }, 2000);
                 }
             }
 
             renderer.render(scene, camera);
         }
 
-        // ضبط الشاشة عند تغيير الحجم
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
