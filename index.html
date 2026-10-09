@@ -5,462 +5,400 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Penalty Kick 3D Pro - Pi Network</title>
     <style>
-        * {
-            box-sizing: border-box;
-            user-select: none;
-            -webkit-user-select: none;
-            margin: 0;
-            padding: 0;
-        }
-        body, html {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #050b14;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        #canvas-container {
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 1;
-        }
-        /* واجهة المستخدم الفائقة الجودة */
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+        
         .ui-header {
-            position: absolute;
-            top: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-            display: flex;
-            gap: 20px;
-            background: rgba(10, 20, 35, 0.85);
-            padding: 12px 24px;
-            border-radius: 30px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(10px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            color: #fff;
-            font-size: 16px;
-            font-weight: bold;
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 10;
+            display: flex; gap: 15px; background: rgba(15, 23, 42, 0.85); padding: 10px 20px;
+            border-radius: 25px; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(8px);
+            color: #fff; font-size: 15px; font-weight: bold; box-shadow: 0 8px 25px rgba(0,0,0,0.6);
         }
-        .ui-stat {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .ui-stat span {
-            color: #4cd137;
-            font-size: 18px;
-        }
+        .ui-stat span { color: #2ecc71; font-size: 17px; }
+        
         .instructions {
-            position: absolute;
-            bottom: 25px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-            background: rgba(0, 0, 0, 0.7);
-            color: #fff;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-size: 14px;
-            pointer-events: none;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            text-align: center;
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 10;
+            background: rgba(0,0,0,0.75); color: #fff; padding: 8px 18px; border-radius: 20px;
+            font-size: 13px; border: 1px solid rgba(255,255,255,0.15); pointer-events: none;
         }
-        .notification-banner {
-            position: absolute;
-            top: 40%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0.8);
-            z-index: 20;
-            background: rgba(15, 23, 42, 0.95);
-            color: #fff;
-            padding: 20px 40px;
-            border-radius: 16px;
-            border: 2px solid #e1b12c;
-            text-align: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+
+        .modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 30;
+            background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: #fff; opacity: 0;
+            pointer-events: none; transition: opacity 0.5s ease; text-align: center;
         }
-        .notification-banner.active {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
-        }
-        .notification-banner h2 {
-            font-size: 24px;
-            margin-bottom: 8px;
-            color: #fbc531;
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal-overlay h1 { color: #f1c40f; font-size: 32px; margin-bottom: 10px; text-shadow: 0 0 20px #f39c12; }
+        .modal-overlay p { font-size: 18px; margin-bottom: 20px; }
+        .btn-next {
+            background: #2ecc71; color: #fff; border: none; padding: 12px 30px; font-size: 18px;
+            font-weight: bold; border-radius: 25px; cursor: pointer; box-shadow: 0 5px 15px rgba(46,204,113,0.4);
         }
     </style>
-    <!-- مكتبة Three.js ثلاثية الأبعاد -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- مكتبة Pi Network SDK -->
     <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
 <body>
 
-    <!-- واجهة النتائج -->
     <div class="ui-header">
         <div class="ui-stat">المستوى: <span id="level-val">1</span></div>
-        <div class="ui-stat">الأهداف: <span id="score-val">0</span></div>
+        <div class="ui-stat">الأهداف: <span id="score-val">0</span> / 5</div>
         <div class="ui-stat">الرميات: <span id="attempts-val">0 / 5</span></div>
     </div>
 
-    <div class="instructions" id="instruction-text">اسحب الكرة لأعلى لتسديد ضربة الجزاء!</div>
+    <div class="instructions">اسحب الكرة لأعلى لتسديد ضربة الجزاء!</div>
 
-    <!-- إشعار التبديل والنتيجة -->
-    <div class="notification-banner" id="banner">
-        <h2 id="banner-title">ضاعت الركية!</h2>
-        <p id="banner-sub">جارٍ تبديل اللاعب المهاجم...</p>
+    <!-- نافذة الفوز بالكأس -->
+    <div class="modal-overlay" id="trophy-modal">
+        <h1>🏆 بطل الكأس! 🏆</h1>
+        <p>أحسنت! سجلت 5 أهداف متتالية وحصلت على كأس البطولة!</p>
+        <button class="btn-next" onclick="nextLevel()">الانتقال للمستوى التالي</button>
     </div>
 
     <div id="canvas-container"></div>
 
     <script>
         // --- تهيئة Pi SDK ---
-        try {
-            if (window.Pi) {
-                Pi.init({ version: "2.0", sandbox: false });
+        try { if (window.Pi) Pi.init({ version: "2.0", sandbox: false }); } catch(e){}
+
+        // --- الصوتيات الحيوية (Audio Synthesizer) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playCheerSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            // توليد صوت هتاف الجماهير والبهجة
+            const bufferSize = audioCtx.sampleRate * 2.5;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
             }
-        } catch(e) { console.log("Pi SDK error:", e); }
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 1000;
+            filter.Q.value = 1.5;
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.01, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.3, audioCtx.currentTime + 0.3);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 2.5);
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+            noise.start();
+        }
 
-        // --- متغيرا المشهد والتصميم 3D ---
+        function playWhistleSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(2500, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.8);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.8);
+        }
+
+        // --- المشهد ثلاثي الأبعاد ---
         let scene, camera, renderer;
-        let ball, goalkeeper, player, goal;
-        let isKicking = false;
-        let ballVelocity = new THREE.Vector3();
-        let keeperVelocity = 0;
+        let ball, goalkeeper, player, trophyGroup;
+        let isKicking = false, showTrophy = false;
+        let ballVel = new THREE.Vector3();
+        let keeperVel = 0;
         let score = 0, level = 1, attempts = 0;
-        const maxAttempts = 5;
+        const playerColors = [0xe74c3c, 0x3498db, 0x9b59b6, 0xe67e22, 0x1abc9c];
+        let colorIdx = 0;
 
-        // ألوان قمصان اللاعبين المتاحة عند التبديل
-        const playerColors = [0xe74c3c, 0x3498db, 0x9b59b6, 0xe67e22, 0x1abc9c, 0xf1c40f];
-        let currentColorIndex = 0;
-
-        // نقاط لمس الشاشة
-        let touchStart = { x: 0, y: 0, time: 0 };
-        let touchEnd = { x: 0, y: 0, time: 0 };
+        let touchStart = { x: 0, y: 0, t: 0 };
 
         function init() {
             const container = document.getElementById('canvas-container');
-
-            // 1. إنشاء المشهد والكاميرا
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0a1526);
-            scene.fog = new THREE.FogExp2(0x0a1526, 0.015);
+            scene.background = new THREE.Color(0x0c1e38);
+            scene.fog = new THREE.FogExp2(0x0c1e38, 0.012);
 
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 1.7, 8); // موقع الكاميرا خلف اللاعب والكرة
+            camera.position.set(0, 1.8, 8.5);
 
-            // 2. الـ Renderer مع دعم الظلال
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             container.appendChild(renderer.domElement);
 
-            // 3. الإضاءة الواقعية
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambientLight);
+            // الإضاءة
+            const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambient);
+            const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+            sun.position.set(10, 25, 10);
+            sun.castShadow = true;
+            scene.add(sun);
 
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-            dirLight.position.set(10, 20, 10);
-            dirLight.castShadow = true;
-            dirLight.shadow.mapSize.width = 2048;
-            dirLight.shadow.mapSize.height = 2048;
-            scene.add(dirLight);
-
-            // 4. إنشاء مكونات الملعب
-            createField();
-            createGoal();
+            createStadium();
+            createHumanGoalkeeper();
+            createHumanPlayer(playerColors[colorIdx]);
             createBall();
-            createGoalkeeper();
-            createPlayer(playerColors[currentColorIndex]);
+            create3DTrophy();
 
-            // 5. استماع أحداث اللمس والتحكم
-            window.addEventListener('resize', onWindowResize);
-            const canvas = renderer.domElement;
-            canvas.addEventListener('touchstart', handleTouchStart, false);
-            canvas.addEventListener('touchend', handleTouchEnd, false);
-            canvas.addEventListener('mousedown', handleMouseDown, false);
-            canvas.addEventListener('mouseup', handleMouseUp, false);
+            window.addEventListener('resize', onResize);
+            const el = renderer.domElement;
+            el.addEventListener('touchstart', e => {
+                if(isKicking || showTrophy) return;
+                touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+            });
+            el.addEventListener('touchend', e => {
+                if(isKicking || showTrophy) return;
+                const touchEnd = { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY, t: Date.now() };
+                shoot(touchEnd);
+            });
 
             animate();
         }
 
-        // --- إنشاء أرضية الملعب والخطوط ---
-        function createField() {
-            // العشب الأخضر
-            const fieldGeo = new THREE.PlaneGeometry(60, 80);
-            const fieldMat = new THREE.MeshStandardMaterial({ 
-                color: 0x27ae60, 
-                roughness: 0.8,
-                metalness: 0.1 
-            });
-            const field = new THREE.Mesh(fieldGeo, fieldMat);
+        // --- بناء الاستاد والمدرجات ---
+        function createStadium() {
+            // العشب
+            const field = new THREE.Mesh(
+                new THREE.PlaneGeometry(60, 80),
+                new THREE.MeshStandardMaterial({ color: 0x27ae60, roughness: 0.7 })
+            );
             field.rotation.x = -Math.PI / 2;
             field.receiveShadow = true;
             scene.add(field);
 
-            // خط منطقة الجزاء
-            const lineGeo = new THREE.PlaneGeometry(16, 0.2);
-            const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            const line = new THREE.Mesh(lineGeo, lineMat);
-            line.rotation.x = -Math.PI / 2;
-            line.position.set(0, 0.01, -2);
-            scene.add(line);
-        }
-
-        // --- إنشاء المرمى الشامل 3D ---
-        function createGoal() {
-            goal = new THREE.Group();
-            const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+            // المرمى
+            const goal = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.4), mat);
+            p1.position.set(-3.6, 1.2, -12); p1.castShadow = true;
+            const p2 = p1.clone(); p2.position.x = 3.6;
+            const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 7.36), mat);
+            bar.rotation.z = Math.PI / 2; bar.position.set(0, 2.4, -12);
             
-            // القائمين والعارضة
-            const postLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.4), postMat);
-            postLeft.position.set(-3.6, 1.2, -12);
-            postLeft.castShadow = true;
-
-            const postRight = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.4), postMat);
-            postRight.position.set(3.6, 1.2, -12);
-            postRight.castShadow = true;
-
-            const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 7.4), postMat);
-            bar.rotation.z = Math.PI / 2;
-            bar.position.set(0, 2.4, -12);
-            bar.castShadow = true;
-
-            // الشبكة الإفتراضية
-            const netGeo = new THREE.PlaneGeometry(7.2, 2.4);
-            const netMat = new THREE.MeshBasicMaterial({ color: 0xcccccc, wireframe: true, transparent: true, opacity: 0.4 });
-            const net = new THREE.Mesh(netGeo, netMat);
-            net.position.set(0, 1.2, -12.5);
-
-            goal.add(postLeft, postRight, bar, net);
+            const net = new THREE.Mesh(
+                new THREE.PlaneGeometry(7.2, 2.4),
+                new THREE.MeshBasicMaterial({ color: 0xdddddd, wireframe: true, transparent: true, opacity: 0.3 })
+            );
+            net.position.set(0, 1.2, -12.4);
+            goal.add(p1, p2, bar, net);
             scene.add(goal);
+
+            // المدرجات الخلفية
+            const wall = new THREE.Mesh(
+                new THREE.PlaneGeometry(60, 15),
+                new THREE.MeshBasicMaterial({ color: 0x1a252f })
+            );
+            wall.position.set(0, 7.5, -25);
+            scene.add(wall);
         }
 
-        // --- إنشاء كرة القدم ---
+        // --- بناء هيكل إنسان مجسم كامل (Humanoid Model) ---
+        function createHumanoidMesh(shirtColor, skinColor = 0xd2b48c) {
+            const group = new THREE.Group();
+            const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.5 });
+            const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.4 });
+            const shortsMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 });
+
+            // الجذع (Torso)
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.28), shirtMat);
+            torso.position.y = 1.1; torso.castShadow = true;
+            group.add(torso);
+
+            // الرأس (Head)
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 16), skinMat);
+            head.position.y = 1.62; head.castShadow = true;
+            group.add(head);
+
+            // الشورت (Shorts)
+            const shorts = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.35, 0.3), shortsMat);
+            shorts.position.y = 0.65; shorts.castShadow = true;
+            group.add(shorts);
+
+            // الأرجل (Legs)
+            const legGeo = new THREE.CylinderGeometry(0.08, 0.07, 0.6);
+            const legL = new THREE.Mesh(legGeo, skinMat); legL.position.set(-0.15, 0.3, 0); legL.castShadow = true;
+            const legR = legL.clone(); legR.position.x = 0.15;
+            group.add(legL, legR);
+
+            // الأذرع (Arms)
+            const armGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.6);
+            const armL = new THREE.Mesh(armGeo, skinMat); armL.position.set(-0.33, 1.1, 0); armL.castShadow = true;
+            const armR = armL.clone(); armR.position.x = 0.33;
+            group.add(armL, armR);
+
+            return group;
+        }
+
+        function createHumanGoalkeeper() {
+            goalkeeper = createHumanoidMesh(0xf1c40f, 0xffdbac); // حارس بقميص أصفر
+            goalkeeper.position.set(0, 0, -11.8);
+            scene.add(goalkeeper);
+        }
+
+        function createHumanPlayer(color) {
+            if (player) scene.remove(player);
+            player = createHumanoidMesh(color, 0x8d5524);
+            player.position.set(-0.6, 0, 5.5);
+            scene.add(player);
+        }
+
         function createBall() {
-            const ballGeo = new THREE.SphereGeometry(0.22, 32, 32);
-            const ballMat = new THREE.MeshStandardMaterial({ color: 0xf5f6fa, roughness: 0.3 });
-            ball = new THREE.Mesh(ballGeo, ballMat);
+            ball = new THREE.Mesh(
+                new THREE.SphereGeometry(0.22, 32, 32),
+                new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 })
+            );
             ball.position.set(0, 0.22, 5);
             ball.castShadow = true;
             scene.add(ball);
         }
 
-        // --- إنشاء الحارس ---
-        function createGoalkeeper() {
-            goalkeeper = new THREE.Group();
-            const bodyGeo = new THREE.CylinderGeometry(0.25, 0.25, 1.2);
-            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f }); // قميص أصفر
-            const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.y = 0.8;
-            body.castShadow = true;
-
-            const headGeo = new THREE.SphereGeometry(0.2, 16, 16);
-            const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
-            const head = new THREE.Mesh(headGeo, headMat);
-            head.position.y = 1.6;
-            head.castShadow = true;
-
-            goalkeeper.add(body, head);
-            goalkeeper.position.set(0, 0, -11.8);
-            scene.add(goalkeeper);
-        }
-
-        // --- إنشاء اللاعب المهاجم مع إمكانية تحديد لون القميص ---
-        function createPlayer(color) {
-            if (player) scene.remove(player);
-
-            player = new THREE.Group();
-            const bodyGeo = new THREE.CylinderGeometry(0.25, 0.2, 1.1);
-            const bodyMat = new THREE.MeshStandardMaterial({ color: color });
-            const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.y = 0.75;
-            body.castShadow = true;
-
-            const headGeo = new THREE.SphereGeometry(0.18, 16, 16);
-            const headMat = new THREE.MeshStandardMaterial({ color: 0x8d5524 });
-            const head = new THREE.Mesh(headGeo, headMat);
-            head.position.y = 1.5;
-            head.castShadow = true;
-
-            player.add(body, head);
-            player.position.set(-0.6, 0, 5.5);
-            scene.add(player);
-        }
-
-        // --- ميزة تبديل اللاعب المهاجم عند الخسارة ---
-        function swapPlayer() {
-            showBanner("ضاعت الركلة!", "جارٍ تبديل اللاعب ومغادرة الملعب...");
+        // --- بناء الكأس الذهبي 3D ---
+        function create3DTrophy() {
+            trophyGroup = new THREE.Group();
+            const goldMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f, metalness: 0.9, roughness: 0.1 });
             
-            // تحريك اللاعب الحالي للخروج
-            let exitInterval = setInterval(() => {
-                if (player.position.x > -6) {
-                    player.position.x -= 0.1;
-                } else {
-                    clearInterval(exitInterval);
-                    
-                    // اختيار لون جديد وإنشاء لاعب آخر يدخل الملعب
-                    currentColorIndex = (currentColorIndex + 1) % playerColors.length;
-                    createPlayer(playerColors[currentColorIndex]);
-                    player.position.set(6, 0, 5.5);
+            // قاعدة الكأس
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 0.3, 16), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+            base.position.y = 0.15;
+            
+            // جسم الكأس
+            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.5, 16), goldMat);
+            stem.position.y = 0.55;
+            
+            const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.2, 0.8, 16, 1, true), goldMat);
+            cup.position.y = 1.1;
 
-                    // تحريك اللاعب الجديد للدخول
-                    let enterInterval = setInterval(() => {
-                        if (player.position.x > -0.6) {
-                            player.position.x -= 0.1;
-                        } else {
-                            clearInterval(enterInterval);
-                            resetBall();
-                            hideBanner();
-                        }
-                    }, 20);
-                }
-            }, 20);
+            trophyGroup.add(base, stem, cup);
+            trophyGroup.position.set(0, 1, 1);
+            trophyGroup.visible = false;
+            scene.add(trophyGroup);
         }
 
-        // --- معالجة حركة التسديد واللمس ---
-        function handleTouchStart(e) {
-            if (isKicking) return;
-            const t = e.touches[0];
-            touchStart = { x: t.clientX, y: t.clientY, time: Date.now() };
-        }
-
-        function handleTouchEnd(e) {
-            if (isKicking) return;
-            const t = e.changedTouches[0];
-            touchEnd = { x: t.clientX, y: t.clientY, time: Date.now() };
-            shoot();
-        }
-
-        function handleMouseDown(e) {
-            if (isKicking) return;
-            touchStart = { x: e.clientX, y: e.clientY, time: Date.now() };
-        }
-
-        function handleMouseUp(e) {
-            if (isKicking) return;
-            touchEnd = { x: e.clientX, y: e.clientY, time: Date.now() };
-            shoot();
-        }
-
-        function shoot() {
+        function shoot(touchEnd) {
             const dx = touchEnd.x - touchStart.x;
-            const dy = touchStart.y - touchEnd.y; // اتجاه للأعلى
-            const dt = Math.max((touchEnd.time - touchStart.time) / 1000, 0.1);
+            const dy = touchStart.y - touchEnd.y;
+            const dt = Math.max((touchEnd.t - touchStart.t) / 1000, 0.1);
 
-            if (dy < 30) return; // تحسين دقة الرمية
+            if (dy < 25) return;
 
             isKicking = true;
             attempts++;
-            document.getElementById('attempts-val').innerText = `${attempts} / ${maxAttempts}`;
+            document.getElementById('attempts-val').innerText = `${attempts} / 5`;
 
-            // انطلاق السرعة والاتجاه
-            const power = Math.min(dy / dt / 800, 1.2);
-            ballVelocity.set(
-                (dx / window.innerWidth) * 6,
-                Math.min(dy / window.innerHeight * 8, 3.5),
-                -12 * power
-            );
-
-            // حركة ذكاء الحارس
-            keeperVelocity = (Math.random() - 0.5) * 6;
+            const power = Math.min(dy / dt / 750, 1.25);
+            ballVel.set((dx / window.innerWidth) * 6.5, Math.min(dy / window.innerHeight * 8.5, 3.8), -13 * power);
+            keeperVel = (Math.random() - 0.5) * 6.5;
         }
 
-        // --- الحلقة الرئيسية للتحديث والتأثيرات ---
         function animate() {
             requestAnimationFrame(animate);
 
             if (isKicking) {
-                // تحريك الكرة
-                ball.position.addScaledVector(ballVelocity, 0.03);
-                ballVelocity.y -= 0.15; // الجاذبية الأرضية
-                if (ball.position.y < 0.22) {
-                    ball.position.y = 0.22;
-                    ballVelocity.y *= -0.4; // الارتداد
-                }
-                ball.rotation.x += 0.2;
+                ball.position.addScaledVector(ballVel, 0.03);
+                ballVel.y -= 0.14;
+                if (ball.position.y < 0.22) { ball.position.y = 0.22; ballVel.y *= -0.3; }
+                ball.rotation.x += 0.25;
 
-                // تحريك الحارس للتصدي
                 if (goalkeeper.position.z < ball.position.z) {
-                    goalkeeper.position.x += keeperVelocity * 0.02;
+                    goalkeeper.position.x += keeperVel * 0.02;
                     goalkeeper.position.x = THREE.MathUtils.clamp(goalkeeper.position.x, -3.2, 3.2);
                 }
 
-                // فحص الاصطدام والنتائج
                 checkCollision();
+            }
+
+            if (showTrophy) {
+                trophyGroup.rotation.y += 0.03; // دوران الكأس الذهبي
             }
 
             renderer.render(scene, camera);
         }
 
         function checkCollision() {
-            // فحص التصدي من قبل الحارس
-            const distToKeeper = ball.position.distanceTo(goalkeeper.position);
-            if (distToKeeper < 0.8) {
+            if (ball.position.distanceTo(goalkeeper.position) < 0.85) {
                 isKicking = false;
+                playWhistleSound();
                 swapPlayer();
                 return;
             }
 
-            // فحص دخول المرمى (هدف)
             if (ball.position.z <= -12) {
                 isKicking = false;
                 if (Math.abs(ball.position.x) < 3.5 && ball.position.y < 2.4 && ball.position.y > 0.2) {
-                    // تسجيل هدف
                     score++;
                     document.getElementById('score-val').innerText = score;
-                    showBanner("هـــدف رائع! ⚽", "أحسنت! تسديدة متقنة في الشباك.");
-                    setTimeout(() => {
-                        resetBall();
-                        hideBanner();
-                    }, 2000);
+                    playCheerSound(); // صوت الهتاف
+
+                    if (score >= 5) {
+                        // الحصول على الكأس عند 5 أهداف ناجحة
+                        setTimeout(triggerTrophyWin, 800);
+                    } else {
+                        setTimeout(resetBall, 1500);
+                    }
                 } else {
-                    // ضياع الكرة خارج المرمى
+                    playWhistleSound();
                     swapPlayer();
                 }
             }
         }
 
+        function triggerTrophyWin() {
+            showTrophy = true;
+            trophyGroup.visible = true;
+            document.getElementById('trophy-modal').classList.add('active');
+        }
+
+        function nextLevel() {
+            showTrophy = false;
+            trophyGroup.visible = false;
+            document.getElementById('trophy-modal').classList.remove('active');
+            level++;
+            score = 0;
+            attempts = 0;
+            document.getElementById('level-val').innerText = level;
+            document.getElementById('score-val').innerText = score;
+            document.getElementById('attempts-val').innerText = `0 / 5`;
+            swapPlayer();
+        }
+
+        function swapPlayer() {
+            // خروج اللاعب القديم ودخول لاعب جديد
+            let exit = setInterval(() => {
+                if (player.position.x > -6) player.position.x -= 0.12;
+                else {
+                    clearInterval(exit);
+                    colorIdx = (colorIdx + 1) % playerColors.length;
+                    createHumanPlayer(playerColors[colorIdx]);
+                    player.position.set(6, 0, 5.5);
+                    let enter = setInterval(() => {
+                        if (player.position.x > -0.6) player.position.x -= 0.12;
+                        else { clearInterval(enter); resetBall(); }
+                    }, 20);
+                }
+            }, 20);
+        }
+
         function resetBall() {
             ball.position.set(0, 0.22, 5);
-            ballVelocity.set(0, 0, 0);
+            ballVel.set(0, 0, 0);
             goalkeeper.position.set(0, 0, -11.8);
             isKicking = false;
 
-            if (attempts >= maxAttempts) {
-                showBanner("انتهت الجولة!", `مجموع أهدافك: ${score}`);
+            if (attempts >= 5 && score < 5) {
                 attempts = 0;
                 score = 0;
-                level++;
-                document.getElementById('level-val').innerText = level;
                 document.getElementById('score-val').innerText = score;
-                document.getElementById('attempts-val').innerText = `0 / ${maxAttempts}`;
-                setTimeout(hideBanner, 3000);
+                document.getElementById('attempts-val').innerText = `0 / 5`;
             }
         }
 
-        function showBanner(title, sub) {
-            const b = document.getElementById('banner');
-            document.getElementById('banner-title').innerText = title;
-            document.getElementById('banner-sub').innerText = sub;
-            b.classList.add('active');
-        }
-
-        function hideBanner() {
-            document.getElementById('banner').classList.remove('active');
-        }
-
-        function onWindowResize() {
+        function onResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
