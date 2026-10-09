@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>لعبة ضربات الجزاء الاحترافية</title>
+    <title>Penalty Kick 3D - Pi App</title>
+    <!-- استدعاء Pi Network SDK المطلوب للتحقق -->
+    <script src="https://sdk.minepi.com/pi-sdk.js"></script>
     <style>
         * { box-sizing: border-box; touch-action: none; margin: 0; padding: 0; }
         body {
@@ -75,6 +77,20 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
+        // --- تهيئة Pi Network Authentication ---
+        if (window.Pi) {
+            try {
+                Pi.init({ version: "2.0", sandbox: true });
+                Pi.authenticate(['username'], function(auth) {
+                    console.log("Pi User Authenticated:", auth.user.username);
+                }, function(error) {
+                    console.error(error);
+                });
+            } catch(e) {
+                console.log("Pi SDK error:", e);
+            }
+        }
+
         var canvas = document.getElementById('gameCanvas');
         var ctx = canvas.getContext('2d');
 
@@ -226,7 +242,6 @@
 
                     keeper.x += (keeper.targetX - keeper.x) * 0.12;
                 } else {
-                    // استقرار الكرة داخل الشبكة
                     ball.vx *= 0.8;
                     ball.vy *= 0.8;
                     ball.x += ball.vx;
@@ -280,13 +295,14 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. السماء المتدرجة والمدرجات
+            // 1. السماء
             var skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.32);
             skyGradient.addColorStop(0, '#1e3a8a');
             skyGradient.addColorStop(1, '#3b82f6');
             ctx.fillStyle = skyGradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height * 0.32);
 
+            // الجمهور
             var colors = ['#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff'];
             for (var i = 0; i < canvas.width; i += 12) {
                 ctx.fillStyle = colors[i % colors.length];
@@ -305,7 +321,7 @@
                 ctx.fillRect(0, j, canvas.width, 15);
             }
 
-            // خط منطقة الجزاء
+            // خط الجزاء
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
             ctx.lineWidth = 4;
             ctx.beginPath();
@@ -313,7 +329,7 @@
             ctx.lineTo(canvas.width * 0.9, canvas.height * 0.62);
             ctx.stroke();
 
-            // 3. خط التوجيه والنيون
+            // 3. خط النيون
             if (isTouching && !isKicking && dragDy < -10) {
                 ctx.strokeStyle = '#00ffcc';
                 ctx.lineWidth = 3;
@@ -355,7 +371,7 @@
             ctx.fillStyle = '#111111';
             ctx.beginPath(); ctx.arc(ball.x - r*0.3, ball.y - r*0.3, r * 0.4, 0, Math.PI * 2); ctx.fill();
 
-            // العارضة والقائمين
+            // القائمين
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 8;
             ctx.strokeRect(gX, gY, goalW, goalH);
@@ -376,7 +392,7 @@
             ctx.fillRect(13, -18, 9, 9);
             ctx.restore();
 
-            // 7. اللاعب (محمد صلاح)
+            // 7. اللاعب
             var pX = player.x, pY = player.y;
             ctx.fillStyle = '#d32f2f';
             ctx.fillRect(pX - 14, pY - 28, 28, 28);
