@@ -1,11 +1,27 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Penalty Kick 3D - Pi App</title>
-    <!-- استدعاء Pi Network SDK المطلوب للتحقق -->
+    <title>Penalty Kick 3D</title>
+    <!-- Pi Network SDK Required for App Studio Verification -->
     <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+    <script>
+        window.onload = function() {
+            if (window.Pi) {
+                try {
+                    Pi.init({ version: "2.0", sandbox: true });
+                    Pi.authenticate(['username'], function(auth) {
+                        console.log("Authenticated: " + auth.user.username);
+                    }, function(error) {
+                        console.error(error);
+                    });
+                } catch(e) {
+                    console.log("Pi Init Error", e);
+                }
+            }
+        };
+    </script>
     <style>
         * { box-sizing: border-box; touch-action: none; margin: 0; padding: 0; }
         body {
@@ -66,31 +82,17 @@
 <body>
 
     <div id="scoreboard">
-        <div>المستوى: <span id="level-count" class="level">1</span></div>
-        <div>الأهداف: <span id="goals-count" class="goals">0</span></div>
-        <div>الرميات: <span id="shots-count" class="shots">0 / 5</span></div>
+        <div>Level: <span id="level-count" class="level">1</span></div>
+        <div>Goals: <span id="goals-count" class="goals">0</span></div>
+        <div>Shots: <span id="shots-count" class="shots">0 / 5</span></div>
     </div>
 
-    <div id="instructions">اسحب مع التوجيه - اسحب للأعلى لتسديد الكرة!</div>
+    <div id="instructions">Drag & Swipe Up To Kick!</div>
     <div id="banner"></div>
 
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // --- تهيئة Pi Network Authentication ---
-        if (window.Pi) {
-            try {
-                Pi.init({ version: "2.0", sandbox: true });
-                Pi.authenticate(['username'], function(auth) {
-                    console.log("Pi User Authenticated:", auth.user.username);
-                }, function(error) {
-                    console.error(error);
-                });
-            } catch(e) {
-                console.log("Pi SDK error:", e);
-            }
-        }
-
         var canvas = document.getElementById('gameCanvas');
         var ctx = canvas.getContext('2d');
 
@@ -101,7 +103,6 @@
         resizeCanvas();
         window.onresize = resizeCanvas;
 
-        // --- الأصوات الاصطناعية ---
         var AudioCtx = window.AudioContext || window.webkitAudioContext;
         var audioCtx;
         function initAudio() { if (!audioCtx) audioCtx = new AudioCtx(); }
@@ -139,7 +140,6 @@
             } catch(e){}
         }
 
-        // --- متغيرات اللعبة ---
         var level = 1, goals = 0, totalShots = 0, maxShots = 5;
         var isKicking = false, isTouching = false, isResultProcessed = false, showTrophy = false;
 
@@ -259,28 +259,28 @@
                     if (ball.x >= gLeft + 15 && ball.x <= gRight - 15 && distToKeeper > 40) {
                         ball.inGoal = true;
                         playCheerSound();
-                        showBanner('جووووول!', 'goal');
+                        showBanner('GOAL!', 'goal');
                         goals++;
                         document.getElementById('goals-count').innerText = goals;
                     } else if (distToKeeper <= 40) {
                         ball.vx *= -0.3;
                         ball.vy *= -0.3;
-                        showBanner('تم التصدي!', 'miss');
+                        showBanner('SAVED!', 'miss');
                     } else {
-                        showBanner('خارج المرمى!', 'miss');
+                        showBanner('MISS!', 'miss');
                     }
 
                     setTimeout(function() {
                         if (totalShots >= maxShots) {
                             if (goals === maxShots) {
                                 playCheerSound();
-                                showBanner('مبروك! اكملت المستوى ' + level, 'win');
+                                showBanner('LEVEL ' + level + ' CLEAR!', 'win');
                                 showTrophy = true;
                                 setTimeout(function() { showTrophy = false; }, 3000);
                                 level++;
                                 document.getElementById('level-count').innerText = level;
                             } else {
-                                showBanner('انتهى الشوط! الأهداف ' + goals + '/' + maxShots, 'miss');
+                                showBanner('GAME OVER! Goals: ' + goals + '/' + maxShots, 'miss');
                             }
                             goals = 0; totalShots = 0;
                             document.getElementById('goals-count').innerText = goals;
@@ -295,21 +295,18 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. السماء
             var skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.32);
             skyGradient.addColorStop(0, '#1e3a8a');
             skyGradient.addColorStop(1, '#3b82f6');
             ctx.fillStyle = skyGradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height * 0.32);
 
-            // الجمهور
             var colors = ['#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff'];
             for (var i = 0; i < canvas.width; i += 12) {
                 ctx.fillStyle = colors[i % colors.length];
                 ctx.fillRect(i, canvas.height * 0.25, 8, 16);
             }
 
-            // 2. أرضية العشب
             var grass = ctx.createLinearGradient(0, canvas.height * 0.32, 0, canvas.height);
             grass.addColorStop(0, '#2d8a3c');
             grass.addColorStop(1, '#15803d');
@@ -321,7 +318,6 @@
                 ctx.fillRect(0, j, canvas.width, 15);
             }
 
-            // خط الجزاء
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
             ctx.lineWidth = 4;
             ctx.beginPath();
@@ -329,7 +325,6 @@
             ctx.lineTo(canvas.width * 0.9, canvas.height * 0.62);
             ctx.stroke();
 
-            // 3. خط النيون
             if (isTouching && !isKicking && dragDy < -10) {
                 ctx.strokeStyle = '#00ffcc';
                 ctx.lineWidth = 3;
@@ -346,7 +341,6 @@
                 ctx.fill();
             }
 
-            // 4. المرمى والشبكة
             var goalW = Math.min(canvas.width * 0.65, 260);
             var goalH = 90;
             var gX = canvas.width / 2 - goalW / 2;
@@ -364,19 +358,16 @@
                 ctx.beginPath(); ctx.moveTo(gX, y); ctx.lineTo(gX + goalW, y); ctx.stroke();
             }
 
-            // 5. الكرة
             var r = 16 * ball.scale;
             ctx.fillStyle = '#ffffff';
             ctx.beginPath(); ctx.arc(ball.x, ball.y, r, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#111111';
             ctx.beginPath(); ctx.arc(ball.x - r*0.3, ball.y - r*0.3, r * 0.4, 0, Math.PI * 2); ctx.fill();
 
-            // القائمين
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 8;
             ctx.strokeRect(gX, gY, goalW, goalH);
 
-            // 6. حارس المرمى
             ctx.save();
             ctx.translate(keeper.x, keeper.y);
             ctx.rotate(keeper.diveAngle);
@@ -392,7 +383,6 @@
             ctx.fillRect(13, -18, 9, 9);
             ctx.restore();
 
-            // 7. اللاعب
             var pX = player.x, pY = player.y;
             ctx.fillStyle = '#d32f2f';
             ctx.fillRect(pX - 14, pY - 28, 28, 28);
