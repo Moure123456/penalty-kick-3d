@@ -77,26 +77,38 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // تهيئة Pi Auth
-        function initPiAuth() {
-            if (window.Pi) {
-                try {
-                    window.Pi.init({ version: "2.0" });
-                    window.Pi.authenticate(["username"], function(p){})
-                    .then(function(auth) {
-                        fetch("https://backend.appstudio-u7cm9zhmha0ruwv8.piappengine.com/pi/auth/v1/login", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ accessToken: auth.accessToken })
-                        });
-                    }).catch(function(e){});
-                } catch(e){}
+        var appSessionToken = null;
+        var authenticatedUser = null;
+
+        function onIncompletePaymentFound(payment) {
+            console.log("Incomplete payment found:", payment);
+        }
+
+        async function authenticateWithPi() {
+            if (!window.Pi) return;
+            try {
+                await window.Pi.init({ version: "2.0" });
+                const authResult = await window.Pi.authenticate(["username"], onIncompletePaymentFound);
+                
+                const response = await fetch("https://backend.appstudio-u7cm9zhmha0ruwv8.piappengine.com/pi/auth/v1/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ accessToken: authResult.accessToken })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    appSessionToken = data.sessionToken;
+                    authenticatedUser = data.user;
+                }
+            } catch (err) {
+                console.error("Pi Auth Error:", err);
             }
         }
 
-        window.onload = function() {
-            initPiAuth();
-        };
+        window.addEventListener('load', function() {
+            authenticateWithPi();
+        });
 
         var canvas = document.getElementById('gameCanvas');
         var ctx = canvas.getContext('2d');
