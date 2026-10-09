@@ -68,7 +68,7 @@
         <div>الرميات: <span id="shots-count" class="shots">0 / 5</span></div>
     </div>
 
-    <div id="instructions">اسحب مع التوجيه - استخدم خط النيون للتسديد الدقيق!</div>
+    <div id="instructions">اسحب مع التوجيه - اسحب للأعلى لتسديد الكرة!</div>
     <div id="banner"></div>
 
     <canvas id="gameCanvas"></canvas>
@@ -126,7 +126,7 @@
         let level = 1, goals = 0, totalShots = 0, maxShots = 5;
         let isKicking = false, isTouching = false, isResultProcessed = false, showTrophy = false;
 
-        let ball = { x: 0, y: 0, scale: 1, vx: 0, vy: 0, vScale: 0 };
+        let ball = { x: 0, y: 0, scale: 1, vx: 0, vy: 0, vScale: 0, inGoal: false };
         let player = { x: 0, y: 0, animState: 'idle' };
         let keeper = { x: 0, y: 0, targetX: 0, diveAngle: 0 };
 
@@ -137,6 +137,7 @@
             ball.y = canvas.height * 0.82;
             ball.scale = 1;
             ball.vx = 0; ball.vy = 0; ball.vScale = 0;
+            ball.inGoal = false;
 
             player.x = canvas.width / 2 - 50;
             player.y = canvas.height * 0.80;
@@ -175,7 +176,6 @@
                     totalShots++;
                     document.getElementById('shots-count').innerText = `${totalShots} / ${maxShots}`;
 
-                    // التراجع ثم الجري
                     player.animState = 'backstep';
                     let stepCount = 0;
                     let backInterval = setInterval(() => {
@@ -190,8 +190,8 @@
                                     player.animState = 'kicking';
                                     playKickSound();
 
-                                    ball.vx = dragDx * 0.07;
-                                    ball.vy = dragDy * 0.07;
+                                    ball.vx = dragDx * 0.06;
+                                    ball.vy = dragDy * 0.06;
                                     ball.vScale = -0.012;
 
                                     let goalW = Math.min(canvas.width * 0.65, 260);
@@ -220,16 +220,24 @@
         }
 
         function update() {
-            if (isKicking && ball.vScale !== 0) {
-                ball.x += ball.vx;
-                ball.y += ball.vy;
-                ball.scale += ball.vScale;
-                if (ball.scale < 0.38) ball.scale = 0.38;
+            if (isKicking) {
+                if (!ball.inGoal) {
+                    ball.x += ball.vx;
+                    ball.y += ball.vy;
+                    ball.scale += ball.vScale;
+                    if (ball.scale < 0.38) ball.scale = 0.38;
 
-                keeper.x += (keeper.targetX - keeper.x) * 0.12;
+                    keeper.x += (keeper.targetX - keeper.x) * 0.12;
+                } else {
+                    // تباطؤ واستقرار الكرة داخل الشبكة
+                    ball.vx *= 0.82;
+                    ball.vy *= 0.82;
+                    ball.x += ball.vx;
+                    ball.y += ball.vy;
+                }
 
                 let goalY = canvas.height * 0.32;
-                if (ball.y <= goalY + 20 && !isResultProcessed) {
+                if (ball.y <= goalY + 15 && !isResultProcessed) {
                     isResultProcessed = true;
                     let goalW = Math.min(canvas.width * 0.65, 260);
                     let gLeft = canvas.width / 2 - goalW / 2;
@@ -237,16 +245,22 @@
                     let distToKeeper = Math.abs(ball.x - keeper.x);
 
                     if (ball.x >= gLeft + 15 && ball.x <= gRight - 15 && distToKeeper > 40) {
+                        // هدف واستقرار الكرة داخل المرمى
+                        ball.inGoal = true;
                         playCheerSound();
                         showBanner('جووووول!', 'goal');
                         goals++;
                         document.getElementById('goals-count').innerText = goals;
                     } else if (distToKeeper <= 40) {
+                        // تصدي الحارس
+                        ball.vx *= -0.3;
+                        ball.vy *= -0.3;
                         showBanner('تم التصدي!', 'miss');
                     } else {
                         showBanner('خارج المرمى!', 'miss');
                     }
 
+                    // الانتظار لرؤية الكرة وهي مستقرة قبل إعادة البداية
                     setTimeout(() => {
                         if (totalShots >= maxShots) {
                             if (goals === maxShots) {
@@ -264,7 +278,7 @@
                             document.getElementById('shots-count').innerText = `0 / ${maxShots}`;
                         }
                         resetPositions();
-                    }, 2000);
+                    }, 2400);
                 }
             }
         }
@@ -285,14 +299,13 @@
                 ctx.fillRect(i, canvas.height * 0.25, 8, 16);
             }
 
-            // 2. أرضية العشب بخطوط الإكساء
+            // 2. أرضية العشب
             let grass = ctx.createLinearGradient(0, canvas.height * 0.32, 0, canvas.height);
             grass.addColorStop(0, '#2d8a3c');
             grass.addColorStop(1, '#15803d');
             ctx.fillStyle = grass;
             ctx.fillRect(0, canvas.height * 0.32, canvas.width, canvas.height * 0.68);
 
-            // شرائط عشبية متدرجة الواقعية
             ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
             for (let i = canvas.height * 0.32; i < canvas.height; i += 30) {
                 ctx.fillRect(0, i, canvas.width, 15);
@@ -306,29 +319,32 @@
             ctx.lineTo(canvas.width * 0.9, canvas.height * 0.62);
             ctx.stroke();
 
-            // 3. خط التوجيه والنيون الساطع قبل التسديد
+            // 3. خط التوجيه والنيون
             if (isTouching && !isKicking && dragDy < -10) {
                 ctx.strokeStyle = '#00ffcc';
-                ctx.lineWidth = 4;
-                ctx.setLineDash([8, 8]);
+                ctx.lineWidth = 3;
+                ctx.setLineDash([6, 6]);
                 ctx.beginPath();
                 ctx.moveTo(ball.x, ball.y);
                 ctx.lineTo(ball.x + dragDx, ball.y + dragDy);
                 ctx.stroke();
                 ctx.setLineDash([]);
 
-                // رسم سهم النيون الموجه
                 ctx.fillStyle = '#00ffcc';
                 ctx.beginPath();
-                ctx.arc(ball.x + dragDx, ball.y + dragDy, 8, 0, Math.PI * 2);
+                ctx.arc(ball.x + dragDx, ball.y + dragDy, 6, 0, Math.PI * 2);
                 ctx.fill();
             }
 
-            // 4. المرمى والشبكة
+            // 4. المرمى والشبكة (رسم المرمى أمامي لتستقر الكرة خلف المرمى والشبكة)
             let goalW = Math.min(canvas.width * 0.65, 260);
             let goalH = 90;
             let gX = canvas.width / 2 - goalW / 2;
             let gY = canvas.height * 0.32 - 15;
+
+            // خلفية الشبكة
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            ctx.fillRect(gX, gY, goalW, goalH);
 
             ctx.strokeStyle = 'rgba(255,255,255,0.4)';
             ctx.lineWidth = 1;
@@ -339,69 +355,34 @@
                 ctx.beginPath(); ctx.moveTo(gX, y); ctx.lineTo(gX + goalW, y); ctx.stroke();
             }
 
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 8;
-            ctx.strokeRect(gX, gY, goalW, goalH);
-
-            // 5. حارس المرمى بقفازات ثلاثية الابعاد
-            ctx.save();
-            ctx.translate(keeper.x, keeper.y);
-            ctx.rotate(keeper.diveAngle);
-
-            ctx.fillStyle = '#fbc02d'; // قميص أصفر
-            ctx.fillRect(-12, -20, 24, 22);
-            ctx.fillStyle = '#111111'; // شورت
-            ctx.fillRect(-12, 2, 24, 12);
-            ctx.fillStyle = '#c68642'; // وجه
-            ctx.beginPath(); ctx.arc(0, -26, 8, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#ffffff'; // قفازات
-            ctx.fillRect(-22, -18, 9, 9);
-            ctx.fillRect(13, -18, 9, 9);
-            ctx.restore();
-
-            // 6. اللاعب (محمد صلاح)
-            let pX = player.x, pY = player.y;
-            ctx.fillStyle = '#d32f2f'; // قميص
-            ctx.fillRect(pX - 14, pY - 28, 28, 28);
-            ctx.fillStyle = '#ffffff'; // شورت
-            ctx.fillRect(pX - 14, pY, 28, 14);
-
-            ctx.fillStyle = '#c68642';
-            ctx.fillRect(pX - 11, pY + 14, 8, 18);
-            ctx.fillRect(pX + 3, pY + 14, 8, 18);
-            ctx.fillStyle = '#111111';
-            ctx.fillRect(pX - 13, pY + 32, 10, 6);
-            ctx.fillRect(pX + 3, pY + 32, 10, 6);
-
-            // شعر ولحية
-            ctx.fillStyle = '#c68642';
-            ctx.beginPath(); ctx.arc(pX, pY - 35, 10, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#1a0f00';
-            ctx.beginPath(); ctx.arc(pX, pY - 38, 12, Math.PI, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(pX, pY - 33, 10.5, 0, Math.PI); ctx.fill();
-
-            // 7. الكرة مع نقش وسرعة دوران
+            // 5. الكرة (عند التسجيل ترسم داخل المرمى)
             let r = 16 * ball.scale;
             ctx.fillStyle = '#ffffff';
             ctx.beginPath(); ctx.arc(ball.x, ball.y, r, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#111111';
             ctx.beginPath(); ctx.arc(ball.x - r*0.3, ball.y - r*0.3, r * 0.4, 0, Math.PI * 2); ctx.fill();
 
-            if (showTrophy) {
-                ctx.fillStyle = '#ffd700';
-                ctx.beginPath();
-                ctx.arc(canvas.width / 2, canvas.height * 0.45, 35, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = '#111111';
-                ctx.font = 'bold 20px sans-serif';
-                ctx.fillText('🏆', canvas.width / 2 - 12, canvas.height * 0.45 + 7);
-            }
+            // العارضة والقائمين فوق الكرة لإعطاء إيحاء بدخولها داخل المرمى
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(gX, gY, goalW, goalH);
 
-            update();
-            requestAnimationFrame(draw);
-        }
+            // 6. حارس المرمى
+            ctx.save();
+            ctx.translate(keeper.x, keeper.y);
+            ctx.rotate(keeper.diveAngle);
 
-        draw();
-    </script>
-</body>
-</html>
+            ctx.fillStyle = '#fbc02d';
+            ctx.fillRect(-12, -20, 24, 22);
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(-12, 2, 24, 12);
+            ctx.fillStyle = '#c68642';
+            ctx.beginPath(); ctx.arc(0, -26, 8, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(-22, -18, 9, 9);
+            ctx.fillRect(13, -18, 9, 9);
+            ctx.restore();
+
+            // 7. اللاعب (محمد صلاح)
+            let pX = player.x, pY = player.y;
+            ctx.fillStyle = '#d3
