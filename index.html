@@ -2,409 +2,348 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Penalty Kick 3D Pro - Pi Network</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>لعبة صياد السمك الاحترافية</title>
     <style>
-        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
-        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, sans-serif; }
-        #canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
-        
-        .ui-header {
-            position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 10;
-            display: flex; gap: 15px; background: rgba(15, 23, 42, 0.85); padding: 10px 20px;
-            border-radius: 25px; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(8px);
-            color: #fff; font-size: 15px; font-weight: bold; box-shadow: 0 8px 25px rgba(0,0,0,0.6);
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
         }
-        .ui-stat span { color: #2ecc71; font-size: 17px; }
-        
-        .instructions {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 10;
-            background: rgba(0,0,0,0.75); color: #fff; padding: 8px 18px; border-radius: 20px;
-            font-size: 13px; border: 1px solid rgba(255,255,255,0.15); pointer-events: none;
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Cairo', Arial, sans-serif;
+            background: #4fc3f7;
+            touch-action: none;
         }
-
-        .modal-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 30;
-            background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
-            justify-content: center; align-items: center; color: #fff; opacity: 0;
-            pointer-events: none; transition: opacity 0.5s ease; text-align: center;
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #1976d2, #4fc3f7 70%, #ffcc80 70%);
+            transition: background 1s ease;
         }
-        .modal-overlay.active { opacity: 1; pointer-events: auto; }
-        .modal-overlay h1 { color: #f1c40f; font-size: 32px; margin-bottom: 10px; text-shadow: 0 0 20px #f39c12; }
-        .modal-overlay p { font-size: 18px; margin-bottom: 20px; }
-        .btn-next {
-            background: #2ecc71; color: #fff; border: none; padding: 12px 30px; font-size: 18px;
-            font-weight: bold; border-radius: 25px; cursor: pointer; box-shadow: 0 5px 15px rgba(46,204,113,0.4);
+        /* لوحة العدادات العلوية */
+        #ui-bar {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 15px;
+            border-radius: 20px;
+            display: flex;
+            gap: 15px;
+            font-size: 15px;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            z-index: 100;
+        }
+        /* منطقة الرسائل والإرشادات */
+        #msg-box {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 6px 15px;
+            border-radius: 15px;
+            font-size: 13px;
+            z-index: 100;
+            text-align: center;
+            pointer-events: none;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* وضع الليل */
+        .night-mode {
+            background: linear-gradient(to bottom, #050b14, #0d1b2a 70%, #3e2723 70%) !important;
+        }
+        .night-mode #ui-bar {
+            background: rgba(15, 23, 42, 0.9) !important;
+            color: #fff !important;
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
 <body>
 
-    <div class="ui-header">
-        <div class="ui-stat">المستوى: <span id="level-val">1</span></div>
-        <div class="ui-stat">الأهداف: <span id="score-val">0</span> / 5</div>
-        <div class="ui-stat">الرميات: <span id="attempts-val">0 / 5</span></div>
+    <div id="game-container">
+        <div id="ui-bar">
+            <div>النقاط: <span id="score">0</span> pi</div>
+            <div>المحفظة: <span id="wallet">0</span> pi</div>
+            <div>الحالة: <span id="status">نهار ☀️</span></div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="msg-box">امسح واسحب الشاشة لتحريك الصنارة وصيد الأسماك وضعها بالسلة!</div>
     </div>
-
-    <div class="instructions">اسحب الكرة لأعلى لتسديد ضربة الجزاء!</div>
-
-    <!-- نافذة الفوز بالكأس -->
-    <div class="modal-overlay" id="trophy-modal">
-        <h1>🏆 بطل الكأس! 🏆</h1>
-        <p>أحسنت! سجلت 5 أهداف متتالية وحصلت على كأس البطولة!</p>
-        <button class="btn-next" onclick="nextLevel()">الانتقال للمستوى التالي</button>
-    </div>
-
-    <div id="canvas-container"></div>
 
     <script>
-        // --- تهيئة Pi SDK ---
-        try { if (window.Pi) Pi.init({ version: "2.0", sandbox: false }); } catch(e){}
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
 
-        // --- الصوتيات الحيوية (Audio Synthesizer) ---
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        function playCheerSound() {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            // توليد صوت هتاف الجماهير والبهجة
-            const bufferSize = audioCtx.sampleRate * 2.5;
-            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-            const data = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                data[i] = Math.random() * 2 - 1;
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        let score = 0;
+        let wallet = 0;
+        let isNight = false;
+
+        // إحداثيات اللمس والخطاف
+        let hookX = canvas.width * 0.3;
+        let hookY = canvas.height * 0.5;
+        let isTouching = false;
+        let hookedFish = null;
+
+        // إحداثيات الصياد والشاطئ
+        const fishermanX = canvas.width * 0.2;
+        const groundY = canvas.height * 0.7;
+
+        // النجوم للوضع الليلي
+        const stars = [];
+        for(let i=0; i<40; i++) {
+            stars.push({x: Math.random() * canvas.width, y: Math.random() * (groundY * 0.6), size: Math.random() * 2 + 1});
+        }
+
+        // مصفوفة الأسماك
+        let fishes = [];
+        const fishTypes = [
+            { name: 'حوت أبيض', value: 100, color: '#f5f5f5', size: 45, speed: 1.2, type: 'whale' },
+            { name: 'قرش أحمر', value: 50, color: '#e53935', size: 35, speed: 1.8, type: 'shark' },
+            { name: 'سمكة ملونة', value: 20, color: '#ffb300', size: 25, speed: 2.3, type: 'normal' },
+            { name: 'سمكة صغيرة', value: 10, color: '#43a047', size: 18, speed: 2.8, type: 'small' }
+        ];
+
+        function spawnFish() {
+            if(fishes.length < 6) {
+                let template = fishTypes[Math.floor(Math.random() * fishTypes.length)];
+                fishes.push({
+                    x: Math.random() > 0.5 ? -60 : canvas.width + 60,
+                    y: groundY * 0.2 + Math.random() * (groundY * 0.45),
+                    vx: (Math.random() > 0.5 ? 1 : -1) * template.speed,
+                    ...template,
+                    wiggle: Math.random() * 10
+                });
             }
-            const noise = audioCtx.createBufferSource();
-            noise.buffer = buffer;
-            const filter = audioCtx.createBiquadFilter();
-            filter.type = 'bandpass';
-            filter.frequency.value = 1000;
-            filter.Q.value = 1.5;
-            const gain = audioCtx.createGain();
-            gain.gain.setValueAtTime(0.01, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.3, audioCtx.currentTime + 0.3);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 2.5);
-            noise.connect(filter);
-            filter.connect(gain);
-            gain.connect(audioCtx.destination);
-            noise.start();
+        }
+        setInterval(spawnFish, 2200);
+
+        // التفاعل عبر اللمس للأندرويد
+        window.addEventListener('touchstart', handleTouch);
+        window.addEventListener('touchmove', handleTouch);
+        window.addEventListener('touchend', () => { isTouching = false; });
+
+        // التفاعل عبر الماوس أيضاً للاختبار على المتصفح
+        window.addEventListener('mousedown', (e) => { isTouching = true; updateHookPos(e.clientX, e.clientY); });
+        window.addEventListener('mousemove', (e) => { if(isTouching) updateHookPos(e.clientX, e.clientY); });
+        window.addEventListener('mouseup', () => { isTouching = false; });
+
+        function handleTouch(e) {
+            isTouching = true;
+            let touch = e.touches[0];
+            updateHookPos(touch.clientX, touch.clientY);
+            e.preventDefault();
         }
 
-        function playWhistleSound() {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(2500, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.8);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.8);
-        }
+        function updateHookPos(x, y) {
+            hookX = x;
+            hookY = y;
 
-        // --- المشهد ثلاثي الأبعاد ---
-        let scene, camera, renderer;
-        let ball, goalkeeper, player, trophyGroup;
-        let isKicking = false, showTrophy = false;
-        let ballVel = new THREE.Vector3();
-        let keeperVel = 0;
-        let score = 0, level = 1, attempts = 0;
-        const playerColors = [0xe74c3c, 0x3498db, 0x9b59b6, 0xe67e22, 0x1abc9c];
-        let colorIdx = 0;
-
-        let touchStart = { x: 0, y: 0, t: 0 };
-
-        function init() {
-            const container = document.getElementById('canvas-container');
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0c1e38);
-            scene.fog = new THREE.FogExp2(0x0c1e38, 0.012);
-
-            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 1.8, 8.5);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            container.appendChild(renderer.domElement);
-
-            // الإضاءة
-            const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambient);
-            const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-            sun.position.set(10, 25, 10);
-            sun.castShadow = true;
-            scene.add(sun);
-
-            createStadium();
-            createHumanGoalkeeper();
-            createHumanPlayer(playerColors[colorIdx]);
-            createBall();
-            create3DTrophy();
-
-            window.addEventListener('resize', onResize);
-            const el = renderer.domElement;
-            el.addEventListener('touchstart', e => {
-                if(isKicking || showTrophy) return;
-                touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
-            });
-            el.addEventListener('touchend', e => {
-                if(isKicking || showTrophy) return;
-                const touchEnd = { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY, t: Date.now() };
-                shoot(touchEnd);
-            });
-
-            animate();
-        }
-
-        // --- بناء الاستاد والمدرجات ---
-        function createStadium() {
-            // العشب
-            const field = new THREE.Mesh(
-                new THREE.PlaneGeometry(60, 80),
-                new THREE.MeshStandardMaterial({ color: 0x27ae60, roughness: 0.7 })
-            );
-            field.rotation.x = -Math.PI / 2;
-            field.receiveShadow = true;
-            scene.add(field);
-
-            // المرمى
-            const goal = new THREE.Group();
-            const mat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-            const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.4), mat);
-            p1.position.set(-3.6, 1.2, -12); p1.castShadow = true;
-            const p2 = p1.clone(); p2.position.x = 3.6;
-            const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 7.36), mat);
-            bar.rotation.z = Math.PI / 2; bar.position.set(0, 2.4, -12);
-            
-            const net = new THREE.Mesh(
-                new THREE.PlaneGeometry(7.2, 2.4),
-                new THREE.MeshBasicMaterial({ color: 0xdddddd, wireframe: true, transparent: true, opacity: 0.3 })
-            );
-            net.position.set(0, 1.2, -12.4);
-            goal.add(p1, p2, bar, net);
-            scene.add(goal);
-
-            // المدرجات الخلفية
-            const wall = new THREE.Mesh(
-                new THREE.PlaneGeometry(60, 15),
-                new THREE.MeshBasicMaterial({ color: 0x1a252f })
-            );
-            wall.position.set(0, 7.5, -25);
-            scene.add(wall);
-        }
-
-        // --- بناء هيكل إنسان مجسم كامل (Humanoid Model) ---
-        function createHumanoidMesh(shirtColor, skinColor = 0xd2b48c) {
-            const group = new THREE.Group();
-            const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.5 });
-            const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.4 });
-            const shortsMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.6 });
-
-            // الجذع (Torso)
-            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.28), shirtMat);
-            torso.position.y = 1.1; torso.castShadow = true;
-            group.add(torso);
-
-            // الرأس (Head)
-            const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 16), skinMat);
-            head.position.y = 1.62; head.castShadow = true;
-            group.add(head);
-
-            // الشورت (Shorts)
-            const shorts = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.35, 0.3), shortsMat);
-            shorts.position.y = 0.65; shorts.castShadow = true;
-            group.add(shorts);
-
-            // الأرجل (Legs)
-            const legGeo = new THREE.CylinderGeometry(0.08, 0.07, 0.6);
-            const legL = new THREE.Mesh(legGeo, skinMat); legL.position.set(-0.15, 0.3, 0); legL.castShadow = true;
-            const legR = legL.clone(); legR.position.x = 0.15;
-            group.add(legL, legR);
-
-            // الأذرع (Arms)
-            const armGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.6);
-            const armL = new THREE.Mesh(armGeo, skinMat); armL.position.set(-0.33, 1.1, 0); armL.castShadow = true;
-            const armR = armL.clone(); armR.position.x = 0.33;
-            group.add(armL, armR);
-
-            return group;
-        }
-
-        function createHumanGoalkeeper() {
-            goalkeeper = createHumanoidMesh(0xf1c40f, 0xffdbac); // حارس بقميص أصفر
-            goalkeeper.position.set(0, 0, -11.8);
-            scene.add(goalkeeper);
-        }
-
-        function createHumanPlayer(color) {
-            if (player) scene.remove(player);
-            player = createHumanoidMesh(color, 0x8d5524);
-            player.position.set(-0.6, 0, 5.5);
-            scene.add(player);
-        }
-
-        function createBall() {
-            ball = new THREE.Mesh(
-                new THREE.SphereGeometry(0.22, 32, 32),
-                new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 })
-            );
-            ball.position.set(0, 0.22, 5);
-            ball.castShadow = true;
-            scene.add(ball);
-        }
-
-        // --- بناء الكأس الذهبي 3D ---
-        function create3DTrophy() {
-            trophyGroup = new THREE.Group();
-            const goldMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f, metalness: 0.9, roughness: 0.1 });
-            
-            // قاعدة الكأس
-            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 0.3, 16), new THREE.MeshStandardMaterial({ color: 0x333333 }));
-            base.position.y = 0.15;
-            
-            // جسم الكأس
-            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.5, 16), goldMat);
-            stem.position.y = 0.55;
-            
-            const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.2, 0.8, 16, 1, true), goldMat);
-            cup.position.y = 1.1;
-
-            trophyGroup.add(base, stem, cup);
-            trophyGroup.position.set(0, 1, 1);
-            trophyGroup.visible = false;
-            scene.add(trophyGroup);
-        }
-
-        function shoot(touchEnd) {
-            const dx = touchEnd.x - touchStart.x;
-            const dy = touchStart.y - touchEnd.y;
-            const dt = Math.max((touchEnd.t - touchStart.t) / 1000, 0.1);
-
-            if (dy < 25) return;
-
-            isKicking = true;
-            attempts++;
-            document.getElementById('attempts-val').innerText = `${attempts} / 5`;
-
-            const power = Math.min(dy / dt / 750, 1.25);
-            ballVel.set((dx / window.innerWidth) * 6.5, Math.min(dy / window.innerHeight * 8.5, 3.8), -13 * power);
-            keeperVel = (Math.random() - 0.5) * 6.5;
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-
-            if (isKicking) {
-                ball.position.addScaledVector(ballVel, 0.03);
-                ballVel.y -= 0.14;
-                if (ball.position.y < 0.22) { ball.position.y = 0.22; ballVel.y *= -0.3; }
-                ball.rotation.x += 0.25;
-
-                if (goalkeeper.position.z < ball.position.z) {
-                    goalkeeper.position.x += keeperVel * 0.02;
-                    goalkeeper.position.x = THREE.MathUtils.clamp(goalkeeper.position.x, -3.2, 3.2);
-                }
-
-                checkCollision();
-            }
-
-            if (showTrophy) {
-                trophyGroup.rotation.y += 0.03; // دوران الكأس الذهبي
-            }
-
-            renderer.render(scene, camera);
-        }
-
-        function checkCollision() {
-            if (ball.position.distanceTo(goalkeeper.position) < 0.85) {
-                isKicking = false;
-                playWhistleSound();
-                swapPlayer();
-                return;
-            }
-
-            if (ball.position.z <= -12) {
-                isKicking = false;
-                if (Math.abs(ball.position.x) < 3.5 && ball.position.y < 2.4 && ball.position.y > 0.2) {
-                    score++;
-                    document.getElementById('score-val').innerText = score;
-                    playCheerSound(); // صوت الهتاف
-
-                    if (score >= 5) {
-                        // الحصول على الكأس عند 5 أهداف ناجحة
-                        setTimeout(triggerTrophyWin, 800);
-                    } else {
-                        setTimeout(resetBall, 1500);
+            // إذا لم تكن هناك سمكة مشبوكة، ابحث عن سمكة قريبة لتشبيكها
+            if(!hookedFish) {
+                fishes.forEach(fish => {
+                    let dist = Math.hypot(hookX - fish.x, hookY - fish.y);
+                    if(dist < 50) {
+                        hookedFish = fish; // تشبيك السمكة بالصنارة
                     }
-                } else {
-                    playWhistleSound();
-                    swapPlayer();
+                });
+            } else {
+                // إذا كانت مشبوكة، تتحرك مع حركة الإصبع وتتذذب (تملص)
+                hookedFish.x = hookX + (Math.random() - 0.5) * 15;
+                hookedFish.y = hookY + (Math.random() - 0.5) * 15;
+
+                // إذا اقتربت من السلة (بجوار الصياد)، يتم وضعها فيها!
+                let basketX = fishermanX + 45;
+                let basketY = groundY - 20;
+                if(Math.hypot(hookX - basketX, hookY - basketY) < 60) {
+                    score += hookedFish.value;
+                    document.getElementById('score').innerText = score;
+                    
+                    // إزالة السمكة
+                    fishes = fishes.filter(f => f !== hookedFish);
+                    hookedFish = null;
+
+                    // التحقق من نظام 200 pi والوضع الليلي
+                    if(score >= 200) {
+                        wallet += score;
+                        score = 0;
+                        document.getElementById('wallet').innerText = wallet;
+                        document.getElementById('score').innerText = score;
+                        
+                        isNight = true;
+                        container.classList.add('night-mode');
+                        document.getElementById('status').innerText = "ليل 🌙";
+                    }
                 }
             }
         }
 
-        function triggerTrophyWin() {
-            showTrophy = true;
-            trophyGroup.visible = true;
-            document.getElementById('trophy-modal').classList.add('active');
-        }
+        // رسم اللعبة بشكل احترافي
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        function nextLevel() {
-            showTrophy = false;
-            trophyGroup.visible = false;
-            document.getElementById('trophy-modal').classList.remove('active');
-            level++;
-            score = 0;
-            attempts = 0;
-            document.getElementById('level-val').innerText = level;
-            document.getElementById('score-val').innerText = score;
-            document.getElementById('attempts-val').innerText = `0 / 5`;
-            swapPlayer();
-        }
-
-        function swapPlayer() {
-            // خروج اللاعب القديم ودخول لاعب جديد
-            let exit = setInterval(() => {
-                if (player.position.x > -6) player.position.x -= 0.12;
-                else {
-                    clearInterval(exit);
-                    colorIdx = (colorIdx + 1) % playerColors.length;
-                    createHumanPlayer(playerColors[colorIdx]);
-                    player.position.set(6, 0, 5.5);
-                    let enter = setInterval(() => {
-                        if (player.position.x > -0.6) player.position.x -= 0.12;
-                        else { clearInterval(enter); resetBall(); }
-                    }, 20);
-                }
-            }, 20);
-        }
-
-        function resetBall() {
-            ball.position.set(0, 0.22, 5);
-            ballVel.set(0, 0, 0);
-            goalkeeper.position.set(0, 0, -11.8);
-            isKicking = false;
-
-            if (attempts >= 5 && score < 5) {
-                attempts = 0;
-                score = 0;
-                document.getElementById('score-val').innerText = score;
-                document.getElementById('attempts-val').innerText = `0 / 5`;
+            // 1. رسم النجوم في الليل
+            if(isNight) {
+                ctx.fillStyle = "#ffffff";
+                stars.forEach(s => {
+                    ctx.fillRect(s.x, s.y, s.size, s.size);
+                });
+                // رسم القمر
+                ctx.fillStyle = "#fff9c4";
+                ctx.beginPath();
+                ctx.arc(canvas.width - 70, 70, 25, 0, Math.PI * 2);
+                ctx.fill();
             }
+
+            // 2. رسم المراكب في البحر
+            ctx.fillStyle = isNight ? "#37474f" : "#8d6e63";
+            ctx.beginPath();
+            ctx.moveTo(canvas.width * 0.65, groundY - 40);
+            ctx.lineTo(canvas.width * 0.8, groundY - 40);
+            ctx.lineTo(canvas.width * 0.77, groundY - 10);
+            ctx.lineTo(canvas.width * 0.68, groundY - 10);
+            ctx.fill();
+            // شراع المركب
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.moveTo(canvas.width * 0.72, groundY - 40);
+            ctx.lineTo(canvas.width * 0.72, groundY - 80);
+            ctx.lineTo(canvas.width * 0.76, groundY - 50);
+            ctx.fill();
+
+            // 3. رسم الشاطئ والأرضية
+            ctx.fillStyle = isNight ? "#3e2723" : "#ffcc80";
+            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+
+            // 4. رسم الكرسي والسلة
+            // الكرسي
+            ctx.fillStyle = "#795548";
+            ctx.fillRect(fishermanX + 15, groundY - 25, 25, 25);
+            ctx.fillRect(fishermanX + 15, groundY - 45, 5, 20);
+            // السلة بجوار الصياد
+            ctx.fillStyle = "#d7ccc8";
+            ctx.beginPath();
+            ctx.arc(fishermanX + 55, groundY - 15, 18, 0, Math.PI, false);
+            ctx.fill();
+            ctx.strokeStyle = "#5d4037";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 5. رسم الصياد (بشكل بشري واضح: كاب، صُديري، شورت)
+            const fx = fishermanX;
+            const fy = groundY;
+
+            // الحذاء والرجلين
+            ctx.fillStyle = "#3e2723";
+            ctx.fillRect(fx - 10, fy - 15, 8, 15);
+            ctx.fillRect(fx + 2, fy - 15, 8, 15);
+
+            // الشورت (أزرق)
+            ctx.fillStyle = "#1565c0";
+            ctx.fillRect(fx - 12, fy - 35, 24, 22);
+
+            // الصديري (أخضر أنيق)
+            ctx.fillStyle = "#2e7d32";
+            ctx.fillRect(fx - 14, fy - 70, 28, 38);
+
+            // الرأس والوجه
+            ctx.fillStyle = "#ffccbc";
+            ctx.beginPath();
+            ctx.arc(fx, fy - 82, 12, 0, Math.PI * 2);
+            ctx.fill();
+
+            // الكاب (أحمر مميز)
+            ctx.fillStyle = "#c62828";
+            ctx.beginPath();
+            ctx.arc(fx, fy - 86, 12, Math.PI, Math.PI * 2, false);
+            ctx.fill();
+            ctx.fillRect(fx, fy - 90, 16, 4); // حافة الكاب
+
+            // 6. رسم صنارة الخيط
+            const rodTipX = fx + 25;
+            const rodTipY = fy - 80;
+            ctx.strokeStyle = "#455a64";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(fx, fy - 50);
+            ctx.lineTo(rodTipX, rodTipY);
+            ctx.stroke();
+
+            // خيط الصيد المتجه نحو إيماءة اللمس / الخطاف
+            ctx.strokeStyle = isNight ? "#cfd8dc" : "#333333";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(rodTipX, rodTipY);
+            ctx.lineTo(hookX, hookY);
+            ctx.stroke();
+
+            // الخطاف في نهاية الخيط
+            ctx.fillStyle = "#78909c";
+            ctx.beginPath();
+            ctx.arc(hookX, hookY, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 7. تحريك ورسم الأسماك باحترافية
+            fishes.forEach(fish => {
+                if(fish !== hookedFish) {
+                    fish.x += fish.vx;
+                    if(fish.x > canvas.width + 70) fish.x = -60;
+                    if(fish.x < -70) fish.x = canvas.width + 60;
+                }
+
+                ctx.save();
+                ctx.translate(fish.x, fish.y);
+                if(fish.vx < 0) ctx.scale(-1, 1);
+
+                // رسم جسم سمكة احترافي
+                ctx.fillStyle = fish.color;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, fish.size, fish.size * 0.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // ذيل السمكة
+                ctx.beginPath();
+                ctx.moveTo(-fish.size, 0);
+                ctx.lineTo(-fish.size - 15, -12);
+                ctx.lineTo(-fish.size - 15, 12);
+                ctx.closePath();
+                ctx.fill();
+
+                // عين السمكة
+                ctx.fillStyle = "#000";
+                ctx.beginPath();
+                ctx.arc(fish.size * 0.5, -5, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            });
+
+            requestAnimationFrame(draw);
         }
 
-        function onResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        window.onload = init;
+        draw();
     </script>
 </body>
 </html>
