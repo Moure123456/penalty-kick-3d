@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Salah vs Shobier - Penalty Kick 3D</title>
+    <title>Salah vs Shobier - Penalty Kick 3D Pro</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; overflow: hidden; background: #020617; font-family: 'Segoe UI', Tahoma, sans-serif; }
@@ -49,7 +49,7 @@
         <div class="ui-stat">الرميات: <span id="attempts-val">0 / 5</span></div>
     </div>
 
-    <div class="instructions">اسحب الكرة لأعلى لتسديد صاروخية نحو المرمى!</div>
+    <div class="instructions">اسحب الشاشة لأعلى بقوة لتسديد ضربة الجزاء!</div>
 
     <div class="modal-overlay" id="trophy-modal">
         <h1>🏆 أسطورة الملاعب المصرية! 🏆</h1>
@@ -92,8 +92,8 @@
         }
 
         let scene, camera, renderer;
-        let ball, goalkeeper, player, trophyGroup;
-        let isKicking = false, showTrophy = false;
+        let ball, goalkeeper, player, trophyGroup, netMesh;
+        let isKicking = false, showTrophy = false, isReturning = false;
         let ballVel = new THREE.Vector3();
         let keeperTargetX = 0;
         let score = 0, level = 1, attempts = 0;
@@ -106,7 +106,7 @@
             scene.fog = new THREE.FogExp2(0x020617, 0.01);
 
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(0, 2.0, 8.5);
+            camera.position.set(0, 2.1, 8.8); // ضبط الكاميرا خلف اللاعب والكرة بوضوح
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -123,19 +123,19 @@
             scene.add(spotLight);
 
             createProStadium();
-            createShobierGoalkeeper(); // حارس ذكي شبه شوبير
-            createSalahPlayer();       // مهاجم شبه محمد صلاح
+            createShobierGoalkeeper();
+            createSalahPlayer(); // اللاعب واقف خلف الكرة تماماً
             createBall();
             createEpicTrophy();
 
             window.addEventListener('resize', onResize);
             const el = renderer.domElement;
             el.addEventListener('touchstart', e => {
-                if(isKicking || showTrophy) return;
+                if(isKicking || showTrophy || isReturning) return;
                 touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
             });
             el.addEventListener('touchend', e => {
-                if(isKicking || showTrophy) return;
+                if(isKicking || showTrophy || isReturning) return;
                 const touchEnd = { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY, t: Date.now() };
                 shoot(touchEnd);
             });
@@ -160,19 +160,19 @@
             const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 7.58), postMat);
             bar.rotation.z = Math.PI / 2; bar.position.set(0, 2.5, -12);
 
-            const net = new THREE.Mesh(
+            // شبكة مرمى واضحة جداً
+            netMesh = new THREE.Mesh(
                 new THREE.PlaneGeometry(7.4, 2.5),
-                new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.25 })
+                new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.45 })
             );
-            net.position.set(0, 1.25, -12.45);
-            goal.add(p1, p2, bar, net);
+            netMesh.position.set(0, 1.25, -12.45);
+            goal.add(p1, p2, bar, netMesh);
             scene.add(goal);
         }
 
-        // --- تصميم الحارس الذكي (شبه شوبير بخبرة عالية) ---
         function createShobierGoalkeeper() {
             goalkeeper = new THREE.Group();
-            const kitMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.3 }); // قميص حارس مميز
+            const kitMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.3 });
             const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
             
             const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.75, 0.3), kitMat);
@@ -181,12 +181,10 @@
             const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), skinMat);
             head.position.y = 1.7; head.castShadow = true;
 
-            // قفازات حراسة بارزة
             const gloveMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-            const gloveL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.15), gloveMat);
+            const gloveL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18), gloveMat);
             gloveL.position.set(-0.4, 1.2, 0.1);
-            const gloveR = gloveL.clone();
-            gloveR.position.x = 0.4;
+            const gloveR = gloveL.clone(); gloveR.position.x = 0.4;
 
             const legGeo = new THREE.CylinderGeometry(0.08, 0.07, 0.65);
             const legL = new THREE.Mesh(legGeo, skinMat); legL.position.set(-0.16, 0.32, 0);
@@ -197,12 +195,11 @@
             scene.add(goalkeeper);
         }
 
-        // --- تصميم اللاعب (شبه محمد صلاح بشعره المميز وقميص أحر/أزرق) ---
         function createSalahPlayer() {
             player = new THREE.Group();
-            const shirtMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3 }); // قميص مميز
+            const shirtMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.3 });
             const skinMat = new THREE.MeshStandardMaterial({ color: 0x8d5524 });
-            const hairMat = new THREE.MeshStandardMaterial({ color: 0x111111 }); // شعر كيرلي مميز
+            const hairMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
 
             const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.75, 0.3), shirtMat);
             torso.position.y = 1.15; torso.castShadow = true;
@@ -210,7 +207,6 @@
             const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 16), skinMat);
             head.position.y = 1.68; head.castShadow = true;
 
-            // تصميم الشعر الكيرلي المميز لمحمد صلاح
             const hair = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), hairMat);
             hair.position.set(0, 1.78, -0.02);
 
@@ -219,7 +215,8 @@
             const legR = legL.clone(); legR.position.x = 0.16;
 
             player.add(torso, head, hair, legL, legR);
-            player.position.set(-0.6, 0, 5.5);
+            // وضعه خلف الكرة مباشرة بوضوح
+            player.position.set(0, 0, 6.2);
             scene.add(player);
         }
 
@@ -228,7 +225,7 @@
                 new THREE.SphereGeometry(0.22, 32, 32),
                 new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.15 })
             );
-            ball.position.set(0, 0.22, 5);
+            ball.position.set(0, 0.22, 5); // الكرة أمام اللاعب مباشرة
             ball.castShadow = true;
             scene.add(ball);
         }
@@ -262,8 +259,6 @@
 
             const power = Math.min(realDy / dt / 700, 1.3);
             ballVel.set((dx / window.innerWidth) * 7.0, Math.min(realDy / window.innerHeight * 9.0, 4.0), -14 * power);
-
-            // --- ذكاء الحارس "شوبير": يتوقع مكان الكرة بدقة عالية ليتصدى بمهارة ---
             keeperTargetX = THREE.MathUtils.clamp((dx / window.innerWidth) * 5.0, -3.2, 3.2);
         }
 
@@ -276,12 +271,18 @@
                 if (ball.position.y < 0.22) { ball.position.y = 0.22; ballVel.y *= -0.35; }
                 ball.rotation.x += 0.3;
 
-                // حركة الحارس الذكية جداً نحو مكان الكرة (فطنة شوبير)
                 if (goalkeeper.position.z - 0.5 < ball.position.z) {
                     goalkeeper.position.x += (keeperTargetX - goalkeeper.position.x) * 0.12;
                 }
 
                 checkCollision();
+            } else if (isReturning) {
+                // الكرة تعود من الحارس إلى اللاعب
+                ball.position.z += 0.2;
+                if (ball.position.z >= 5) {
+                    ball.position.z = 5;
+                    isReturning = false;
+                }
             }
 
             if (showTrophy) {
@@ -293,11 +294,21 @@
         }
 
         function checkCollision() {
-            // فحص التصدي بمهارة عالية
+            // إذا صد الحارس الكرة يمسكها ثم يرجعها للذي يسدد
             if (ball.position.distanceTo(goalkeeper.position) < 0.95) {
                 isKicking = false;
                 playWhistle();
-                resetBallAfterMiss();
+                
+                // الحارس يمسك الكرة ويتحرك بها قليلاً ثم يرجعها
+                isReturning = true;
+                ball.position.copy(goalkeeper.position);
+                setTimeout(() => {
+                    ball.position.set(0, 0.22, -10);
+                }, 400);
+                
+                setTimeout(() => {
+                    resetBall();
+                }, 1200);
                 return;
             }
 
@@ -308,6 +319,10 @@
                     document.getElementById('score-val').innerText = score;
                     playCheer();
 
+                    // تأثير اهتزاز الشبكة عند دخول الهدف
+                    netMesh.material.opacity = 0.9;
+                    setTimeout(() => { netMesh.material.opacity = 0.45; }, 400);
+
                     if (score >= 5) {
                         setTimeout(triggerTrophyVictory, 600);
                     } else {
@@ -315,7 +330,7 @@
                     }
                 } else {
                     playWhistle();
-                    resetBallAfterMiss();
+                    resetBall();
                 }
             }
         }
@@ -339,11 +354,12 @@
             resetBall();
         }
 
-        function resetBallAfterMiss() {
+        function resetBall() {
             ball.position.set(0, 0.22, 5);
             ballVel.set(0, 0, 0);
             goalkeeper.position.set(0, 0, -11.8);
             isKicking = false;
+            isReturning = false;
 
             if (attempts >= 5 && score < 5) {
                 attempts = 0;
@@ -351,13 +367,6 @@
                 document.getElementById('score-val').innerText = score;
                 document.getElementById('attempts-val').innerText = `0 / 5`;
             }
-        }
-
-        function resetBall() {
-            ball.position.set(0, 0.22, 5);
-            ballVel.set(0, 0, 0);
-            goalkeeper.position.set(0, 0, -11.8);
-            isKicking = false;
         }
 
         function onResize() {
